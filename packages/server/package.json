@@ -13,6 +13,8 @@
   "dependencies": {
     "@irregular/scent-engine": "workspace:*",
     "express": "^4.18.0",
+    "ioredis": "^5.10.1",
+    "postgres": "^3.4.9",
     "zod": "^3.23.0"
   },
   "devDependencies": {
