@@ -12,6 +12,8 @@ The generated identifier is called a **scent** (not fingerprint, not visitor ID)
 
 - [ICP.md](ICP.md) — Ideal Customer Profile. Primary: mid-market SaaS (50–500 employees, 5k–500k MAU) fighting free tier abuse and account takeover. Read before making product scope decisions.
 - [ROADMAP.md](ROADMAP.md) — Phased implementation plan with checkboxes. Source of truth for what's done and what's next.
+- [docs/signals.md](docs/signals.md) — Full signal reference: every key produced by every collector, stability class, browser support, and GDPR legal basis notes. Read before modifying collectors or designing the Phase 2 weighting model.
+- [docs/adr/](docs/adr/) — Architecture Decision Records for locked decisions (probabilistic matching, persistence policies, OTel bridge).
 
 ## Monorepo package layout (target)
 
