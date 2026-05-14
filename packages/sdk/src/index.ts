@@ -30,6 +30,7 @@ export class ScentSDK {
   private readonly options: ScentInitOptions;
   private readonly persistence: PersistenceManager;
   private readonly emitter: ScentEventEmitter;
+  private readonly buffer: Array<Record<string, unknown>> = [];
 
   constructor(options: ScentInitOptions) {
     this.options = options;
@@ -86,10 +87,38 @@ export class ScentSDK {
 
     this.emitter.emit('identity_resolved', observation);
 
+    // Buffer the snapshot payload for flush() transport to the server
+    this.buffer.push({
+      identityId: id,
+      signals,
+      persistencePolicy: this.options.persistence ?? 'balanced',
+      timestamp: new Date().toISOString(),
+    });
+
     // Expose raw signals on the observation for debugging and server transport
     (observation as ScentObservation & { _signals: typeof signals })._signals = signals;
 
     return observation;
+  }
+
+  // Sends all buffered snapshot payloads to the configured server endpoint.
+  // Safe to call repeatedly — no-ops when the buffer is empty.
+  // The server endpoint (POST /v1/events) is implemented in Phase 2;
+  // flush() will resolve immediately with a 501 until then.
+  async flush(): Promise<void> {
+    if (this.buffer.length === 0) return;
+    const endpoint = this.options.endpoint ?? 'https://api.irregular.dev/v1';
+    const payload = [...this.buffer];
+    this.buffer.length = 0;
+
+    await fetch(`${endpoint}/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': this.options.apiKey,
+      },
+      body: JSON.stringify({ snapshots: payload }),
+    });
   }
 
   // Captures the current signal state without resolving or persisting identity.

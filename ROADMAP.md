@@ -72,39 +72,39 @@ A runnable monorepo where `pnpm dev` starts the demo app and Docker stack.
 
 ### Signal collection module
 
-- [ ] Canvas fingerprint (2D context + WebGL renderer string)
-- [ ] Audio context fingerprint (OfflineAudioContext oscillator hash)
-- [ ] Font enumeration (canvas text measurement, NOT Flash)
-- [ ] Screen geometry (resolution, devicePixelRatio, colorDepth)
-- [ ] Timezone + locale (Intl API)
-- [ ] Hardware concurrency + device memory (navigator APIs)
-- [ ] Platform / user agent parsed tokens (not raw UA string)
-- [ ] Touch support + pointer precision
-- [ ] Connection type (NetworkInformation API, graceful degradation)
-- [ ] Installed plugins / MIME types (where available)
-- [ ] CSS media features (prefers-color-scheme, prefers-reduced-motion)
+- [x] Canvas fingerprint (2D context + WebGL renderer string)
+- [x] Audio context fingerprint (OfflineAudioContext oscillator hash)
+- [x] Font enumeration (canvas text measurement, NOT Flash)
+- [x] Screen geometry (resolution, devicePixelRatio, colorDepth)
+- [x] Timezone + locale (Intl API)
+- [x] Hardware concurrency + device memory (navigator APIs)
+- [x] Platform / user agent parsed tokens (not raw UA string)
+- [x] Touch support + pointer precision
+- [x] Connection type (NetworkInformation API, graceful degradation)
+- [x] Installed plugins / MIME types (where available)
+- [x] CSS media features (prefers-color-scheme, prefers-reduced-motion)
 - [ ] WebRTC local IP leak (opt-in, plugin architecture — invasive signals are modular)
 - [ ] Battery API (opt-in, highly invasive, platform-restricted)
 
 **Anti-tamper signals (port from content-security-toolkit):**
-- [ ] WebDriver / Selenium detection (navigator.webdriver, CDP artifacts)
-- [ ] Headless browser heuristics (missing plugins, inconsistent screen sizes)
-- [ ] Patched API detection (compare native toString() vs. implemented behavior)
-- [ ] DevTools open detection (timing-based, as a risk signal — not to block)
-- [ ] Entropy spoofing detection (canvas returns identical noise — too clean)
+- [x] WebDriver / Selenium detection (navigator.webdriver, CDP artifacts)
+- [x] Headless browser heuristics (missing plugins, inconsistent screen sizes)
+- [x] Patched API detection (compare native toString() vs. implemented behavior)
+- [x] DevTools open detection (timing-based, as a risk signal — not to block)
+- [x] Entropy spoofing detection (canvas returns identical noise — too clean)
 
 ### Persistence module
 
-- [ ] Identity token storage across all available layers simultaneously:
+- [x] Identity token storage across all available layers simultaneously:
   - `localStorage` (primary)
   - `sessionStorage` (fallback for same-session recovery)
   - `IndexedDB` (large payload, survives some clear-data events)
   - First-party cookie (server-issued, `HttpOnly`-optional, configurable)
   - ETag-assisted continuity (server responds with identity ETag, SDK sends If-None-Match)
   - Cache Storage API (service worker optional, marked as opt-in)
-- [ ] Resurrection strategy: on observe(), attempt recovery from each layer in priority order
-- [ ] Storage health check: detect which layers are available in this browser session
-- [ ] Configurable `PersistencePolicy`:
+- [x] Resurrection strategy: on observe(), attempt recovery from each layer in priority order
+- [x] Storage health check: detect which layers are available in this browser session
+- [x] Configurable `PersistencePolicy`:
 
 ```ts
 scent.init({
@@ -142,11 +142,11 @@ scent.on('risk_elevated', handler)
 scent.on('identity_resolved', handler)
 ```
 
-- [ ] Event emitter (`scent.on('drift', callback)`) — real-time signals for login flow integration
-- [ ] `scent.snapshot()` — capture current signal state without resolving identity
-- [ ] `scent.flush()` — force send buffered events to server
-- [ ] Framework adapters: React hook (`useScent`), Vue composable (`useScent`)
-- [ ] SDK is tree-shakeable; signal collectors are individually importable
+- [x] Event emitter (`scent.on('drift', callback)`) — real-time signals for login flow integration
+- [x] `scent.snapshot()` — capture current signal state without resolving identity
+- [x] `scent.flush()` — force send buffered events to server
+- [x] Framework adapters: React hook (`useScent`), Vue composable (`useScent`)
+- [x] SDK is tree-shakeable; signal collectors are individually importable
 
 ### Deliverable
 `@irregular/scent-sdk` published to npm (or local registry). Demo app shows `observe()` result with confidence score. Survives localStorage.clear() and returns `isNew: false` via ETag recovery.

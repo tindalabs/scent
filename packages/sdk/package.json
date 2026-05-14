@@ -8,6 +8,14 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/adapters/react.js",
+      "types": "./dist/adapters/react.d.ts"
+    },
+    "./vue": {
+      "import": "./dist/adapters/vue.js",
+      "types": "./dist/adapters/vue.d.ts"
     }
   },
   "scripts": {
@@ -20,11 +28,22 @@
   "dependencies": {
     "@irregular/scent-engine": "workspace:*"
   },
+  "peerDependencies": {
+    "react": ">=18",
+    "vue": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "vue": { "optional": true }
+  },
   "devDependencies": {
     "@playwright/test": "^1.45.0",
     "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
     "jsdom": "^25.0.0",
+    "react": "^18.3.0",
     "typescript": "^5.8.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "vue": "^3.5.0"
   }
 }
