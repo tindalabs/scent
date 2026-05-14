@@ -1,20 +1,105 @@
-// Phase 1 will implement signal collection, persistence, and the observe() API.
-// This stub defines the public interface so apps/demo can import and type-check.
-
 export type {
   ScentObservation,
   ScentInitOptions,
   PersistencePolicy,
+  SignalMap,
 } from '@irregular/scent-engine';
 
-import type { ScentObservation, ScentInitOptions } from '@irregular/scent-engine';
+import type { ScentInitOptions, ScentObservation } from '@irregular/scent-engine';
+import { buildCollectors, collectAllSignals } from './collectors/index.js';
+import { ScentEventEmitter, type ScentEventMap } from './events/emitter.js';
+import { PersistenceManager } from './persistence/manager.js';
+
+export { buildCollectors, collectAllSignals } from './collectors/index.js';
+export type { SignalCollector, SignalRecord, StabilityClass } from './collectors/index.js';
+export { PersistenceManager } from './persistence/manager.js';
+export { ScentEventEmitter } from './events/emitter.js';
+
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 export class ScentSDK {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  constructor(_options: ScentInitOptions) {}
+  private readonly options: ScentInitOptions;
+  private readonly persistence: PersistenceManager;
+  private readonly emitter: ScentEventEmitter;
 
+  constructor(options: ScentInitOptions) {
+    this.options = options;
+    this.persistence = new PersistenceManager(options.persistence ?? 'balanced');
+    this.emitter = new ScentEventEmitter();
+  }
+
+  on<K extends keyof ScentEventMap>(
+    event: K,
+    handler: Parameters<ScentEventEmitter['on']>[1],
+  ): () => void {
+    return this.emitter.on(event, handler);
+  }
+
+  // Collects all available signals, attempts to recover a prior identity from
+  // the persistence layer, and returns an observation. Confidence scoring is
+  // local-only in Phase 1 — the probabilistic engine (Phase 2) will replace
+  // this with server-resolved scores.
   async observe(): Promise<ScentObservation> {
-    throw new Error('Not implemented — Phase 1');
+    const collectors = buildCollectors(this.options);
+    const [signals, resurrectedId] = await Promise.all([
+      collectAllSignals(collectors),
+      this.persistence.resurrect(),
+    ]);
+
+    const isNew = resurrectedId === null;
+    const id = resurrectedId ?? generateId();
+
+    if (isNew) {
+      await this.persistence.persist(id);
+    }
+
+    const observation: ScentObservation = {
+      identity: {
+        id,
+        // Phase 1: binary confidence — either we recovered the same ID (1.0)
+        // or this is a brand-new identity (0.0). Phase 2 makes this probabilistic.
+        confidence: isNew ? 0 : 1,
+        isNew,
+        continuity: isNew ? 'unknown' : 'confirmed',
+      },
+      drift: {
+        // Phase 2 computes real drift by comparing against the previous snapshot
+        detected: false,
+        delta: [],
+        entropy: 0,
+      },
+      risk: {
+        // Phase 3 computes real risk scores
+        score: 0,
+        flags: [],
+      },
+    };
+
+    this.emitter.emit('identity_resolved', observation);
+
+    // Expose raw signals on the observation for debugging and server transport
+    (observation as ScentObservation & { _signals: typeof signals })._signals = signals;
+
+    return observation;
+  }
+
+  // Captures the current signal state without resolving or persisting identity.
+  async snapshot(): Promise<Record<string, string | number | boolean | null>> {
+    const collectors = buildCollectors(this.options);
+    return collectAllSignals(collectors);
+  }
+
+  storageHealth(): Record<string, boolean> {
+    return this.persistence.healthCheck();
   }
 }
 
