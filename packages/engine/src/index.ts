@@ -1,0 +1,15 @@
+export type {
+  ScentIdentity,
+  ScentSnapshot,
+  ScentDrift,
+  ScentRisk,
+  ScentObservation,
+  ScentInitOptions,
+  RiskFlag,
+  SignalMap,
+  ConfidenceBand,
+  RiskBand,
+  DriftClassification,
+  IdentityContinuity,
+  PersistencePolicy,
+} from './types.js';

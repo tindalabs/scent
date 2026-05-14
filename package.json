@@ -1,0 +1,23 @@
+{
+  "name": "scent",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "type-check": "turbo type-check",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.0.0",
+    "turbo": "^2.9.9",
+    "typescript": "^5.8.0",
+    "vitest": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
