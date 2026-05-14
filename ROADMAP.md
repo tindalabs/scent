@@ -38,27 +38,27 @@
 
 ### Tasks
 
-- [ ] Initialize Turborepo monorepo at `irregular/scent` (reuse blindspot-ux monorepo structure as reference)
-- [ ] Define package layout:
+- [x] Initialize Turborepo monorepo at `irregular/scent` (reuse blindspot-ux monorepo structure as reference)
+- [x] Define package layout:
   - `packages/sdk` → `@irregular/scent-sdk`
   - `packages/engine` → `@irregular/scent-engine`
   - `packages/server` → `@irregular/scent-server`
   - `apps/observatory` → Observatory UI
   - `apps/demo` → local demo app
-- [ ] TypeScript 5.x strict config shared across packages
-- [ ] ESLint + Prettier baseline (copy from content-security-toolkit)
-- [ ] Vitest for unit tests, Playwright for SDK integration tests
-- [ ] GitHub Actions CI: lint + test on every PR
-- [ ] Docker Compose dev stack:
+- [x] TypeScript 5.x strict config shared across packages
+- [x] ESLint + Prettier baseline (copy from content-security-toolkit)
+- [x] Vitest for unit tests, Playwright for SDK integration tests
+- [x] GitHub Actions CI: lint + test on every PR
+- [x] Docker Compose dev stack:
   - PostgreSQL (identity graph + drift history)
   - Redis (session cache + rate limiting)
   - OTel Collector (for blindspot-ux bridge testing)
-- [ ] Define and document the core data model:
+- [x] Define and document the core data model:
   - `ScentIdentity` — the persistent entity record
   - `ScentSnapshot` — a point-in-time signal collection
   - `ScentDrift` — a delta between two snapshots
   - `ScentRisk` — a risk assessment record
-- [ ] ADR (Architecture Decision Records) folder — log key decisions as you make them
+- [x] ADR (Architecture Decision Records) folder — log key decisions as you make them
 
 ### Deliverable
 A runnable monorepo where `pnpm dev` starts the demo app and Docker stack.
