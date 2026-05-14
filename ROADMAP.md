@@ -160,59 +160,59 @@ scent.on('identity_resolved', handler)
 
 ### Data ingestion
 
-- [ ] Event ingestion REST endpoint: `POST /v1/events` (accepts SDK snapshot payload)
-- [ ] Payload schema validation (Zod)
-- [ ] Idempotent event deduplication (event UUID + timestamp)
-- [ ] Rate limiting per project API key (Redis-backed)
-- [ ] Project isolation — all data scoped to an API key / tenant
+- [x] Event ingestion REST endpoint: `POST /v1/events` (accepts SDK snapshot payload)
+- [x] Payload schema validation (Zod)
+- [x] Idempotent event deduplication (event UUID + timestamp)
+- [x] Rate limiting per project API key (Redis-backed)
+- [x] Project isolation — all data scoped to an API key / tenant
 
 ### Signal weighting model
 
-- [ ] Assign base weight to each signal by stability class:
+- [x] Assign base weight to each signal by stability class:
   - **Highly stable** (weight 0.8–1.0): Canvas hash, WebGL renderer, audio fingerprint, hardware concurrency, font list
   - **Moderately stable** (weight 0.4–0.7): Screen resolution, timezone, platform, connection type
   - **Volatile** (weight 0.1–0.3): IP, user agent version, plugin list, battery
-- [ ] Time-decay function: signal weights decay toward volatile as time between observations grows
+- [x] Time-decay function: signal weights decay toward volatile as time between observations grows
 - [ ] Configurable weight overrides per project (enterprise feature)
 
 ### Probabilistic matching engine
 
-- [ ] SimHash-based approximate nearest neighbor search for candidate retrieval
-- [ ] Jaccard similarity scoring on signal token sets
-- [ ] Weighted signal comparison: per-signal match/mismatch/absent scoring
+- [x] SimHash-based approximate nearest neighbor search for candidate retrieval
+- [x] Jaccard similarity scoring on signal token sets
+- [x] Weighted signal comparison: per-signal match/mismatch/absent scoring
 - [ ] Drift tolerance thresholds: allow N signals to have changed without reducing confidence below threshold
-- [ ] Confidence score normalization: output a calibrated 0–1 probability (not a raw similarity score)
+- [x] Confidence score normalization: output a calibrated 0–1 probability (not a raw similarity score)
 - [ ] Identity cluster linking: when two previously-distinct identities are resolved as the same entity, merge their history
 - [ ] Candidate deduplication: prevent single observation from matching multiple existing identities above threshold
 
 ### Drift engine
 
-- [ ] Per-observation snapshot diff: which signals changed, which are new, which disappeared
-- [ ] Entropy magnitude calculation: weighted sum of signal change distances
-- [ ] Drift classification:
+- [x] Per-observation snapshot diff: which signals changed, which are new, which disappeared
+- [x] Entropy magnitude calculation: weighted sum of signal change distances
+- [x] Drift classification:
   - `minor` — 1–2 volatile signals changed (normal browsing)
   - `moderate` — stable signal changed (browser update, new device profile)
   - `significant` — multiple stable signals changed simultaneously (VPN + browser update + font change)
   - `suspicious` — drift pattern matches known anti-fingerprinting or automation signatures
-- [ ] Drift history stored per identity: full timeline of snapshots and deltas
+- [x] Drift history stored per identity: full timeline of snapshots and deltas
 - [ ] Signal decay: if a signal is absent for N consecutive observations, reduce its weight in that identity's profile
 
 ### Identity persistence (server-side)
 
-- [ ] PostgreSQL schema:
+- [x] PostgreSQL schema:
   - `identities` table (scent ID, first seen, last seen, confidence band, risk band)
   - `snapshots` table (observation payload, signal hash, timestamp, identity FK)
   - `drifts` table (delta payload, entropy score, classification, before/after snapshot FKs)
   - `clusters` table (linked identity groups for coordinated behavior)
-- [ ] Identity resolution query: O(log n) candidate lookup via SimHash index
+- [x] Identity resolution query: O(log n) candidate lookup via SimHash index
 - [ ] Merge history: audit trail when identities are clustered
 
 ### REST query API
 
-- [ ] `GET /v1/identity/:id` — full identity record with confidence + risk + last snapshot
-- [ ] `GET /v1/identity/:id/timeline` — ordered drift history
-- [ ] `GET /v1/identity/:id/signals` — current signal profile with explainability breakdown
-- [ ] `POST /v1/resolve` — submit a snapshot, get back identity + confidence without persisting (useful for login flow integration)
+- [x] `GET /v1/identity/:id` — full identity record with confidence + risk + last snapshot
+- [x] `GET /v1/identity/:id/timeline` — ordered drift history
+- [x] `GET /v1/identity/:id/signals` — current signal profile with explainability breakdown
+- [x] `POST /v1/resolve` — submit a snapshot, get back identity + confidence without persisting (useful for login flow integration)
 
 ### Deliverable
 `POST /v1/events` accepts a snapshot, stores it, and resolves it against existing identities. `GET /v1/identity/:id/signals` returns which signals matched and why. Demo app shows live confidence score updating across sessions.
