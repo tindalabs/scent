@@ -1,24 +1,32 @@
-// Phase 2 will implement the identity engine, event ingestion API, and REST endpoints.
-// This stub starts the HTTP server so the Docker Compose dev stack is immediately runnable.
-
 import express from 'express';
+import { migrate } from './db/migrate.js';
+import { rateLimitMiddleware } from './middleware/rate-limit.js';
+import { eventsRouter } from './routes/events.js';
+import { identityRouter } from './routes/identity.js';
+import { resolveRouter } from './routes/resolve.js';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', phase: 0 });
+  res.json({ status: 'ok', phase: 2 });
 });
 
-app.post('/v1/events', (_req, res) => {
-  res.status(501).json({ error: 'Not implemented — Phase 2' });
-});
-
-app.post('/v1/resolve', (_req, res) => {
-  res.status(501).json({ error: 'Not implemented — Phase 2' });
-});
+// All /v1/* routes require a valid X-Api-Key and are rate-limited per key.
+app.use('/v1', rateLimitMiddleware);
+app.use('/v1/events', eventsRouter);
+app.use('/v1/identity', identityRouter);
+app.use('/v1/resolve', resolveRouter);
 
 const port = process.env['PORT'] ?? 3000;
-app.listen(port, () => {
-  console.log(`scent-server listening on :${port}`);
-});
+
+migrate()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`scent-server listening on :${port}`);
+    });
+  })
+  .catch((err: unknown) => {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  });
