@@ -10,6 +10,6 @@ export class PluginCollector extends BaseCollector {
       .map((p) => p.name)
       .sort()
       .join(',');
-    return Promise.resolve(plugins ? { 'plugins.list': plugins } : {});
+    return Promise.resolve(plugins ? { 'plugins.list': plugins } : {} as SignalRecord);
   }
 }
