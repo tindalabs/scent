@@ -1,5 +1,5 @@
-import { weightOf } from '@irregular/scent-engine';
-import type { SignalMap } from '@irregular/scent-engine';
+import { weightOf } from '@tindalabs/scent-engine';
+import type { SignalMap } from '@tindalabs/scent-engine';
 
 interface SignalEntry {
   consecutiveAbsences: number;

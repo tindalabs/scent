@@ -10,7 +10,7 @@ export default defineConfig({
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
   ],
   webServer: {
-    command: 'pnpm --filter @irregular/scent-demo dev',
+    command: 'pnpm --filter @tindalabs/scent-demo dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env['CI'],
   },

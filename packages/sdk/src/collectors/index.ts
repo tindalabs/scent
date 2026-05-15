@@ -19,7 +19,7 @@ export { PatchedApiCollector } from './anti-tamper/patched-api.js';
 export { DevToolsCollector } from './anti-tamper/devtools.js';
 export { EntropySpoofCollector } from './anti-tamper/entropy-spoof.js';
 
-import type { ScentInitOptions } from '@irregular/scent-engine';
+import type { ScentInitOptions } from '@tindalabs/scent-engine';
 import type { BaseCollector } from './base.js';
 import { AudioCollector } from './audio.js';
 import { CanvasCollector } from './canvas.js';

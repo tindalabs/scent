@@ -1,5 +1,5 @@
 import { trace, type Span } from '@opentelemetry/api';
-import type { ScentObservation } from '@irregular/scent-sdk';
+import type { ScentObservation } from '@tindalabs/scent-sdk';
 
 // Attribute name constants — stable across scent and blindspot-ux.
 export const ATTR_IDENTITY_ID = 'scent.identity.id';

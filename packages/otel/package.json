@@ -1,5 +1,5 @@
 {
-  "name": "@irregular/scent-otel",
+  "name": "@tindalabs/scent-otel",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,13 +16,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@irregular/scent-sdk": "workspace:*"
+    "@tindalabs/scent-sdk": "workspace:*"
   },
   "peerDependencies": {
     "@opentelemetry/api": ">=1.0.0"
   },
   "devDependencies": {
-    "@irregular/scent-engine": "workspace:*",
+    "@tindalabs/scent-engine": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "typescript": "^5.8.0"
   }

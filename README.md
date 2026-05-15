@@ -5,7 +5,7 @@
 Scent tracks whether a returning visitor is "likely the same entity" even after cookie deletion, VPN changes, browser updates, or anti-fingerprinting tools — using a drift-tolerant confidence scoring engine, not deterministic hashes.
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 
 const sdk = init({ apiKey: 'your-api-key', persistence: 'balanced' });
 
@@ -55,7 +55,7 @@ Confidence bands:
 ### 1. Start the stack
 
 ```bash
-git clone https://github.com/irregular/scent
+git clone https://github.com/tindalabs/scent
 cd scent
 docker compose up
 ```
@@ -68,13 +68,13 @@ This starts:
 ### 2. Install the SDK
 
 ```bash
-npm install @irregular/scent-sdk
+npm install @tindalabs/scent-sdk
 ```
 
 ### 3. Instrument your app
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 
 const sdk = init({
   apiKey: 'your-api-key',        // from Observatory → Project Settings
@@ -105,7 +105,7 @@ if (obs.identity.continuity === 'unknown' || obs.risk.score > 0.6) {
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiKey` | `string` | required | Project API key |
-| `endpoint` | `string` | `https://api.irregular.dev/v1` | Scent server URL |
+| `endpoint` | `string` | `https://api.tindalabs.dev/v1` | Scent server URL |
 | `persistence` | `PersistencePolicy` | `'balanced'` | Storage and collection scope |
 | `traceparentProvider` | `() => string \| null` | — | OTel traceparent hook (see [OTel bridge](docs/integrations/otel-bridge.md)) |
 
@@ -145,11 +145,11 @@ Returns which storage layers are available in the current browser session.
 
 ## OpenTelemetry bridge
 
-If your app uses OpenTelemetry, the `@irregular/scent-otel` bridge attaches identity and risk context to your existing spans:
+If your app uses OpenTelemetry, the `@tindalabs/scent-otel` bridge attaches identity and risk context to your existing spans:
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
-import { ScentOtelBridge, readTraceparent } from '@irregular/scent-otel';
+import { init } from '@tindalabs/scent-sdk';
+import { ScentOtelBridge, readTraceparent } from '@tindalabs/scent-otel';
 
 const sdk = init({ apiKey: '...', traceparentProvider: readTraceparent });
 const bridge = new ScentOtelBridge(sdk);
@@ -185,7 +185,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 Migrations run automatically on server start. To run them standalone:
 
 ```bash
-pnpm --filter @irregular/scent-server migrate
+pnpm --filter @tindalabs/scent-server migrate
 ```
 
 ### Production Docker Compose
@@ -208,19 +208,19 @@ The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse 
 ## Architecture
 
 ```
-@irregular/scent-sdk      (browser)
+@tindalabs/scent-sdk      (browser)
   ├── ~50 signal collectors
   ├── Multi-layer persistence (localStorage, IndexedDB, cookies, ETag)
   └── OTel traceparent bridge
 
-@irregular/scent-server   (Node.js)
+@tindalabs/scent-server   (Node.js)
   ├── POST /v1/events — snapshot ingestion
   ├── SimHash + Jaccard identity engine
   ├── Drift detection + history
   ├── Risk scoring (6 anomaly detectors)
   └── REST query API
 
-@irregular/scent-observatory  (React, port 3001)
+@tindalabs/scent-observatory  (React, port 3001)
   ├── Identity list + detail pages
   ├── Drift timeline visualization
   └── Risk dashboard
@@ -232,4 +232,4 @@ The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse 
 
 MIT — see [LICENSE](LICENSE).
 
-Built by [irregular.dev](https://irregular.dev).
+Built by [tindalabs.dev](https://tindalabs.dev).

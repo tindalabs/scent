@@ -3,9 +3,9 @@ export type {
   ScentInitOptions,
   PersistencePolicy,
   SignalMap,
-} from '@irregular/scent-engine';
+} from '@tindalabs/scent-engine';
 
-import type { ScentInitOptions, ScentObservation } from '@irregular/scent-engine';
+import type { ScentInitOptions, ScentObservation } from '@tindalabs/scent-engine';
 import { buildCollectors, collectAllSignals } from './collectors/index.js';
 import { ScentEventEmitter, type ScentEventMap } from './events/emitter.js';
 import { PersistenceManager } from './persistence/manager.js';
@@ -110,7 +110,7 @@ export class ScentSDK {
   // flush() will resolve immediately with a 501 until then.
   async flush(): Promise<void> {
     if (this.buffer.length === 0) return;
-    const endpoint = this.options.endpoint ?? 'https://api.irregular.dev/v1';
+    const endpoint = this.options.endpoint ?? 'https://api.tindalabs.dev/v1';
     const payload = [...this.buffer];
     this.buffer.length = 0;
 

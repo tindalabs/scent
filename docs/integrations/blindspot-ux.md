@@ -13,15 +13,15 @@ Scent reads this traceparent via `traceparentProvider` at `observe()` time and i
 ## Installation
 
 ```bash
-npm install @irregular/scent-sdk @irregular/scent-otel @blindspot/web
+npm install @tindalabs/scent-sdk @tindalabs/scent-otel @blindspot/web
 ```
 
 ## Setup
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 import { getSessionTraceparent } from '@blindspot/web';
-import { ScentOtelBridge } from '@irregular/scent-otel';
+import { ScentOtelBridge } from '@tindalabs/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
@@ -54,9 +54,9 @@ Because these are set on the route span, all child spans — clicks, fetches, we
 ## React example
 
 ```tsx
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 import { getSessionTraceparent } from '@blindspot/web';
-import { ScentOtelBridge } from '@irregular/scent-otel';
+import { ScentOtelBridge } from '@tindalabs/scent-otel';
 import { useEffect } from 'react';
 
 const sdk = init({ apiKey: '...', traceparentProvider: getSessionTraceparent });
@@ -71,7 +71,7 @@ function App() {
 
 ## Why `getSessionTraceparent()` instead of `readTraceparent()`
 
-`readTraceparent()` from `@irregular/scent-otel` uses `trace.getActiveSpan()` from `@opentelemetry/api`. This works when `observe()` is called synchronously inside a `startActiveSpan` callback but fails across `await` boundaries in browsers — OTel's async context does not propagate through browser Promise microtasks.
+`readTraceparent()` from `@tindalabs/scent-otel` uses `trace.getActiveSpan()` from `@opentelemetry/api`. This works when `observe()` is called synchronously inside a `startActiveSpan` callback but fails across `await` boundaries in browsers — OTel's async context does not propagate through browser Promise microtasks.
 
 `getSessionTraceparent()` reads `_routeSpan` from `@blindspot/web`'s module scope directly, bypassing context propagation entirely. It works regardless of where in the call stack `observe()` runs.
 

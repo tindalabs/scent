@@ -1,5 +1,5 @@
-// @irregular/scent-sdk/vue
-// Import as: import { useScent } from '@irregular/scent-sdk/vue'
+// @tindalabs/scent-sdk/vue
+// Import as: import { useScent } from '@tindalabs/scent-sdk/vue'
 //
 // Vue is a peer dependency — not bundled. The host app provides it.
 

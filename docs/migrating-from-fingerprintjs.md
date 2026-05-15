@@ -8,7 +8,7 @@ FingerprintJS produces a **deterministic visitor ID**: a hash of collected signa
 
 Scent produces a **probabilistic confidence score**: a 0–1 float representing how likely two snapshots are from the same entity. A browser update changes 2 signals out of 20; Scent returns `confidence: 0.91` and `continuity: confirmed`.
 
-This is not a drop-in replacement — it is a different model. The migration involves rethinking how you use the identity signal in your application logic.
+Scent is not a drop-in replacement — it is a different model. The migration involves rethinking how you use the identity signal in your application logic.
 
 ## Mapping concepts
 
@@ -44,7 +44,7 @@ if (result.visitorFound) {
 ### After (Scent)
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 
 const sdk = init({
   apiKey: 'your-scent-key',

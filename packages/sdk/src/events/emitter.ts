@@ -1,4 +1,4 @@
-import type { ScentObservation } from '@irregular/scent-engine';
+import type { ScentObservation } from '@tindalabs/scent-engine';
 
 export type ScentEventMap = {
   identity_resolved: ScentObservation;

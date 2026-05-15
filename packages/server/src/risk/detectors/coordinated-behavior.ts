@@ -1,4 +1,4 @@
-import type { RiskFlag } from '@irregular/scent-engine';
+import type { RiskFlag } from '@tindalabs/scent-engine';
 import type { Sql } from 'postgres';
 
 // Finds other identities in this project that share nearly identical stable signal

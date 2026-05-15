@@ -154,7 +154,7 @@ Core narrative
 That is strong.
 
 Here is the architecture I now envision
-Client SDK (@irregular/scent)
+Client SDK (@tindalabs/scent)
 
 Responsibilities:
 

@@ -128,9 +128,9 @@ When two previously-distinct identities are resolved as the same entity — for 
 
 The platform has four layers:
 
-- **SDK** (`@irregular/scent-sdk`) — runs in the browser. Collects signals, manages local persistence according to the active policy, and posts observation events to the server.
-- **Server** (`@irregular/scent-server`) — receives events at `POST /v1/events`, runs the identity engine, maintains the SimHash index and identity records in Postgres, and caches hot identity state in Redis.
-- **Identity engine** (`@irregular/scent-engine`) — implements SimHash candidate retrieval, weighted Jaccard scoring, confidence calibration, drift classification, and risk detection.
+- **SDK** (`@tindalabs/scent-sdk`) — runs in the browser. Collects signals, manages local persistence according to the active policy, and posts observation events to the server.
+- **Server** (`@tindalabs/scent-server`) — receives events at `POST /v1/events`, runs the identity engine, maintains the SimHash index and identity records in Postgres, and caches hot identity state in Redis.
+- **Identity engine** (`@tindalabs/scent-engine`) — implements SimHash candidate retrieval, weighted Jaccard scoring, confidence calibration, drift classification, and risk detection.
 - **Observatory** — a React + Vite dashboard for exploring identities, confidence trends, drift history, and risk events.
 
 The SDK is the only component that runs in the browser. The identity engine and its Postgres-backed index are server-side. Operating the SDK without a server degrades the system to binary local-storage matching — functional for Phase 1 development but not representative of production behavior.

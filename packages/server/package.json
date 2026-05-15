@@ -1,5 +1,5 @@
 {
-  "name": "@irregular/scent-server",
+  "name": "@tindalabs/scent-server",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@irregular/scent-engine": "workspace:*",
+    "@tindalabs/scent-engine": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.218.0",

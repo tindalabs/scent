@@ -1,4 +1,4 @@
-# Ideal Customer Profile — Scent / irregular.dev
+# Ideal Customer Profile — Scent / tindalabs.dev
 
 ## Primary ICP: Mid-Market SaaS — The Abused Growth Stage
 

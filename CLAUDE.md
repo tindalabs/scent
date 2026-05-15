@@ -18,9 +18,9 @@ The generated identifier is called a **scent** (not fingerprint, not visitor ID)
 ## Monorepo package layout (target)
 
 ```
-packages/sdk        → @irregular/scent-sdk      (browser, signal collection + persistence)
-packages/engine     → @irregular/scent-engine    (probabilistic matching, drift, risk)
-packages/server     → @irregular/scent-server    (Node.js API server)
+packages/sdk        → @tindalabs/scent-sdk      (browser, signal collection + persistence)
+packages/engine     → @tindalabs/scent-engine    (probabilistic matching, drift, risk)
+packages/server     → @tindalabs/scent-server    (Node.js API server)
 apps/observatory    → Observatory UI             (React + Vite)
 apps/demo           → Local demo app
 ```

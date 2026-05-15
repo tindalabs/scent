@@ -18,7 +18,7 @@ It does not control signal collection. All configured collectors run on every `o
 **SDK usage:**
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 
 const sdk = init({ apiKey: '...', persistence: 'balanced' });
 ```

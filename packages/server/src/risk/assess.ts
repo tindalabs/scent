@@ -1,7 +1,7 @@
 import { trace } from '@opentelemetry/api';
 import type { Sql } from 'postgres';
-import type { RiskFlag, RiskBand, SignalMap } from '@irregular/scent-engine';
-import { detectAutomation, compositeRiskScore, scoreToRiskBand } from '@irregular/scent-engine';
+import type { RiskFlag, RiskBand, SignalMap } from '@tindalabs/scent-engine';
+import { detectAutomation, compositeRiskScore, scoreToRiskBand } from '@tindalabs/scent-engine';
 import { detectEntropyInstability } from './detectors/entropy-instability.js';
 import { detectStorageAmnesia } from './detectors/storage-amnesia.js';
 import { detectRapidReregistration } from './detectors/rapid-reregistration.js';

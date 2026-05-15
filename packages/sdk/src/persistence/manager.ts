@@ -1,4 +1,4 @@
-import type { PersistencePolicy } from '@irregular/scent-engine';
+import type { PersistencePolicy } from '@tindalabs/scent-engine';
 import type { StorageAdapter } from './types.js';
 import { CookieAdapter } from './cookie.js';
 import { IndexedDBAdapter } from './indexed-db.js';

@@ -1,5 +1,5 @@
 {
-  "name": "@irregular/scent-observatory",
+  "name": "@tindalabs/scent-observatory",
   "private": true,
   "scripts": {
     "dev": "vite",

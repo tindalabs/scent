@@ -13,8 +13,8 @@ import {
   scoreToIdentityContinuity,
   diffSnapshots,
   SIMHASH_CANDIDATE_THRESHOLD,
-} from '@irregular/scent-engine';
-import type { SignalMap, PersistencePolicy } from '@irregular/scent-engine';
+} from '@tindalabs/scent-engine';
+import type { SignalMap, PersistencePolicy } from '@tindalabs/scent-engine';
 import { absenceWeightOverrides, updateSignalProfile } from '../engine/signal-profile.js';
 import type { SignalProfile } from '../engine/signal-profile.js';
 import { assessRisk } from '../risk/assess.js';

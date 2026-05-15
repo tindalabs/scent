@@ -13,8 +13,8 @@ import {
   compositeRiskScore,
   scoreToRiskBand,
   SIMHASH_CANDIDATE_THRESHOLD,
-} from '@irregular/scent-engine';
-import type { SignalMap, RiskFlag } from '@irregular/scent-engine';
+} from '@tindalabs/scent-engine';
+import type { SignalMap, RiskFlag } from '@tindalabs/scent-engine';
 
 export const resolveRouter: IRouter = Router();
 

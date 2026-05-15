@@ -1,5 +1,5 @@
 {
-  "name": "@irregular/scent-demo",
+  "name": "@tindalabs/scent-demo",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -8,8 +8,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@irregular/scent-otel": "workspace:^",
-    "@irregular/scent-sdk": "workspace:*",
+    "@tindalabs/scent-otel": "workspace:^",
+    "@tindalabs/scent-sdk": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",

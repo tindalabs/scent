@@ -1,4 +1,4 @@
-import type { RiskFlag } from '@irregular/scent-engine';
+import type { RiskFlag } from '@tindalabs/scent-engine';
 import type { Sql } from 'postgres';
 
 // An identity that keeps arriving as "new" (different SDK-generated IDs) but

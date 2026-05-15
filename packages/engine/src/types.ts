@@ -100,13 +100,13 @@ export interface ScentObservation {
  */
 export interface ScentInitOptions {
   apiKey: string;
-  endpoint?: string; // defaults to https://api.irregular.dev/v1
+  endpoint?: string; // defaults to https://api.tindalabs.dev/v1
   persistence?: PersistencePolicy; // defaults to 'balanced'
   signals?: {
     webrtc?: boolean; // opt-in, invasive
     battery?: boolean; // opt-in, invasive, platform-restricted
   };
   // Called at observe() time to inject the W3C traceparent for the current trace.
-  // Wire to @irregular/scent-otel's readTraceparent() for automatic OTel bridge.
+  // Wire to @tindalabs/scent-otel's readTraceparent() for automatic OTel bridge.
   traceparentProvider?: () => string | null;
 }

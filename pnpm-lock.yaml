@@ -35,12 +35,6 @@ importers:
 
   apps/demo:
     dependencies:
-      '@irregular/scent-otel':
-        specifier: workspace:^
-        version: link:../../packages/otel
-      '@irregular/scent-sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -56,6 +50,12 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.41.1
         version: 1.41.1
+      '@tindalabs/scent-otel':
+        specifier: workspace:^
+        version: link:../../packages/otel
+      '@tindalabs/scent-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -145,23 +145,23 @@ importers:
 
   packages/otel:
     dependencies:
-      '@irregular/scent-sdk':
+      '@tindalabs/scent-sdk':
         specifier: workspace:*
         version: link:../sdk
     devDependencies:
-      '@irregular/scent-engine':
-        specifier: workspace:*
-        version: link:../engine
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
+      '@tindalabs/scent-engine':
+        specifier: workspace:*
+        version: link:../engine
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
 
   packages/sdk:
     dependencies:
-      '@irregular/scent-engine':
+      '@tindalabs/scent-engine':
         specifier: workspace:*
         version: link:../engine
     devDependencies:
@@ -192,9 +192,6 @@ importers:
 
   packages/server:
     dependencies:
-      '@irregular/scent-engine':
-        specifier: workspace:*
-        version: link:../engine
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -213,6 +210,9 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.41.1
         version: 1.41.1
+      '@tindalabs/scent-engine':
+        specifier: workspace:*
+        version: link:../engine
       cors:
         specifier: ^2.8.6
         version: 2.8.6

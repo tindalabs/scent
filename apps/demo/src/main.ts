@@ -2,8 +2,8 @@ import { WebTracerProvider, BatchSpanProcessor } from '@opentelemetry/sdk-trace-
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { trace } from '@opentelemetry/api';
 
-import { init } from '@irregular/scent-sdk';
-import { ScentOtelBridge, readTraceparent } from '@irregular/scent-otel';
+import { init } from '@tindalabs/scent-sdk';
+import { ScentOtelBridge, readTraceparent } from '@tindalabs/scent-otel';
 
 // ── OTel setup ───────────────────────────────────────────────────────────────
 // OTEL_SERVICE_NAME is read from the environment at build time by the SDK.
@@ -162,7 +162,7 @@ btnObserve.addEventListener('click', () => {
       riskScore.textContent = `(score: ${resolved.risk.score.toFixed(3)})`;
 
       riskFlagsEl.innerHTML = resolved.risk.flags.length
-        ? resolved.risk.flags.map((f) => `<span class="flag">${f}</span>`).join('')
+        ? resolved.risk.flags.map((f: string) => `<span class="flag">${f}</span>`).join('')
         : '';
 
       sourceValue.textContent = source;

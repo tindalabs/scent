@@ -1,4 +1,4 @@
-import type { RiskFlag } from '@irregular/scent-engine';
+import type { RiskFlag } from '@tindalabs/scent-engine';
 import type { Sql } from 'postgres';
 
 // Finds new identity registrations in this project whose signal hash is similar

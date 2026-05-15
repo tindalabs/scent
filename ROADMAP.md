@@ -9,20 +9,20 @@
 ## Architecture overview
 
 ```
-@irregular/scent-sdk          (browser)
+@tindalabs/scent-sdk          (browser)
   └── Signal collection
   └── Multi-storage persistence
   └── Anti-tamper heuristics
   └── OTel traceparent bridge    ← composes with @blindspot/web
 
-@irregular/scent-server       (Node.js / Docker)
+@tindalabs/scent-server       (Node.js / Docker)
   └── Event ingestion API
   └── Identity Engine (probabilistic matching)
   └── Persistence Layer (resurrection strategies)
   └── Risk Engine (anomaly scoring)
   └── REST query API
 
-@irregular/scent-observatory  (web UI)
+@tindalabs/scent-observatory  (web UI)
   └── Identity timelines
   └── Drift visualization
   └── Signal explainability
@@ -38,11 +38,11 @@
 
 ### Tasks
 
-- [x] Initialize Turborepo monorepo at `irregular/scent` (reuse blindspot-ux monorepo structure as reference)
+- [x] Initialize Turborepo monorepo at `tindalabs/scent` (reuse blindspot-ux monorepo structure as reference)
 - [x] Define package layout:
-  - `packages/sdk` → `@irregular/scent-sdk`
-  - `packages/engine` → `@irregular/scent-engine`
-  - `packages/server` → `@irregular/scent-server`
+  - `packages/sdk` → `@tindalabs/scent-sdk`
+  - `packages/engine` → `@tindalabs/scent-engine`
+  - `packages/server` → `@tindalabs/scent-server`
   - `apps/observatory` → Observatory UI
   - `apps/demo` → local demo app
 - [x] TypeScript 5.x strict config shared across packages
@@ -149,7 +149,7 @@ scent.on('identity_resolved', handler)
 - [x] SDK is tree-shakeable; signal collectors are individually importable
 
 ### Deliverable
-`@irregular/scent-sdk` published to npm (or local registry). Demo app shows `observe()` result with confidence score. Survives localStorage.clear() and returns `isNew: false` via ETag recovery.
+`@tindalabs/scent-sdk` published to npm (or local registry). Demo app shows `observe()` result with confidence score. Survives localStorage.clear() and returns `isNew: false` via ETag recovery.
 
 ---
 
@@ -309,12 +309,12 @@ Observatory running at `localhost:3001` (Docker Compose). Shows live identity da
 
 ### blindspot-ux integration package
 
-- [x] New package: `@irregular/scent-otel` (or `@blindspot/scent-bridge`)
+- [x] New package: `@tindalabs/scent-otel` (or `@blindspot/scent-bridge`)
 - [x] Adds `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@blindspot/web` span
 - [x] Zero-config when both SDKs are present: auto-detects `@blindspot/web` context
 
 ### Deliverable
-A single demo app running both `@blindspot/web` and `@irregular/scent-sdk`. The Grafana Tempo trace for a login event includes `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as span attributes.
+A single demo app running both `@blindspot/web` and `@tindalabs/scent-sdk`. The Grafana Tempo trace for a login event includes `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as span attributes.
 
 ---
 
@@ -349,7 +349,7 @@ A single demo app running both `@blindspot/web` and `@irregular/scent-sdk`. The 
 ### GTM
 
 - [ ] GitHub repo public with clean README and demo GIF
-- [ ] `irregular.dev` landing page (single page: what it is, why it's different, quickstart)
+- [ ] `tindalabs.dev` landing page (single page: what it is, why it's different, quickstart)
 - [ ] Hacker News Show HN post
 - [ ] Dev.to / Medium article: "Why browser fingerprinting alone isn't enough — and what we built instead"
 - [ ] Reach out directly to 10–15 mid-market SaaS founders/CTOs who are vocal about fraud on Twitter/LinkedIn

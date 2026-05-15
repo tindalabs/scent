@@ -1,4 +1,4 @@
-import type { ScentSDK, ScentObservation } from '@irregular/scent-sdk';
+import type { ScentSDK, ScentObservation } from '@tindalabs/scent-sdk';
 import { readTraceparent } from './traceparent.js';
 import { attachScentAttributes } from './attributes.js';
 

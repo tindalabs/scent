@@ -1,4 +1,4 @@
-# OTel Bridge — `@irregular/scent-otel`
+# OTel Bridge — `@tindalabs/scent-otel`
 
 Scent can attach identity and risk context to every OpenTelemetry span in your application. This lets you answer questions like "which identity triggered this trace?" or "was this login event flagged as risky?" directly inside Grafana Tempo, Jaeger, or any other OTel-compatible backend.
 
@@ -27,7 +27,7 @@ Two things happen when the bridge is active:
 ## Installation
 
 ```bash
-npm install @irregular/scent-sdk @irregular/scent-otel
+npm install @tindalabs/scent-sdk @tindalabs/scent-otel
 # @opentelemetry/api is a peer dep — install it alongside your OTel SDK
 ```
 
@@ -38,9 +38,9 @@ npm install @irregular/scent-sdk @irregular/scent-otel
 `@blindspot/web` manages a long-lived route span for the page. Because browser OTel context propagation doesn't survive async boundaries, you should use `getSessionTraceparent()` from `@blindspot/web` directly rather than relying on `readTraceparent()` from the OTel API. `getSessionTraceparent()` reads the stored route span directly, so it works regardless of where in the call stack `observe()` runs.
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 import { getSessionTraceparent } from '@blindspot/web';  // reads the active route span
-import { ScentOtelBridge } from '@irregular/scent-otel';
+import { ScentOtelBridge } from '@tindalabs/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
@@ -60,8 +60,8 @@ await bridge.flush();               // sends snapshot with traceparent to server
 When running without blindspot-ux, use `readTraceparent()` instead. This reads from `@opentelemetry/api`'s active span, which works when `observe()` is called synchronously inside a `startActiveSpan` callback.
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
-import { ScentOtelBridge, readTraceparent } from '@irregular/scent-otel';
+import { init } from '@tindalabs/scent-sdk';
+import { ScentOtelBridge, readTraceparent } from '@tindalabs/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
@@ -82,9 +82,9 @@ tracer.startActiveSpan('login', async (span) => {
 If you prefer not to use the `ScentOtelBridge` wrapper:
 
 ```typescript
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 import { getSessionTraceparent } from '@blindspot/web';
-import { attachScentAttributes } from '@irregular/scent-otel';
+import { attachScentAttributes } from '@tindalabs/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
@@ -106,9 +106,9 @@ attachScentAttributes(obs, trace.getActiveSpan());
 ## React example
 
 ```tsx
-import { init } from '@irregular/scent-sdk';
+import { init } from '@tindalabs/scent-sdk';
 import { getSessionTraceparent } from '@blindspot/web';
-import { ScentOtelBridge } from '@irregular/scent-otel';
+import { ScentOtelBridge } from '@tindalabs/scent-otel';
 import { useEffect } from 'react';
 
 const sdk = init({ apiKey: '...', traceparentProvider: getSessionTraceparent });

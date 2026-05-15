@@ -1,5 +1,5 @@
-// @irregular/scent-sdk/react
-// Import as: import { useScent } from '@irregular/scent-sdk/react'
+// @tindalabs/scent-sdk/react
+// Import as: import { useScent } from '@tindalabs/scent-sdk/react'
 //
 // React is a peer dependency — not bundled. The host app provides it.
 
