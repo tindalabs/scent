@@ -87,12 +87,15 @@ export class ScentSDK {
 
     this.emitter.emit('identity_resolved', observation);
 
+    const traceparent = this.options.traceparentProvider?.() ?? undefined;
+
     // Buffer the snapshot payload for flush() transport to the server
     this.buffer.push({
       identityId: id,
       signals,
       persistencePolicy: this.options.persistence ?? 'balanced',
       timestamp: new Date().toISOString(),
+      ...(traceparent !== undefined ? { traceparent } : {}),
     });
 
     // Expose raw signals on the observation for debugging and server transport

@@ -106,4 +106,7 @@ export interface ScentInitOptions {
     webrtc?: boolean; // opt-in, invasive
     battery?: boolean; // opt-in, invasive, platform-restricted
   };
+  // Called at observe() time to inject the W3C traceparent for the current trace.
+  // Wire to @irregular/scent-otel's readTraceparent() for automatic OTel bridge.
+  traceparentProvider?: () => string | null;
 }

@@ -301,17 +301,17 @@ Observatory running at `localhost:3001` (Docker Compose). Shows live identity da
 
 ### Integration design
 
-- [ ] SDK reads `traceparent` from the current page context (set by `@blindspot/web`)
-- [ ] Scent snapshot payload includes `traceparent` if present
-- [ ] Server stores `traceparent` on the snapshot record
-- [ ] `GET /v1/identity/:id/timeline` includes `traceparent` references — each drift event links to the OTel trace that triggered it
-- [ ] Optional: Scent server emits its own OTel spans (identity resolution latency, risk scoring time) to the configured OTLP endpoint
+- [x] SDK reads `traceparent` from the current page context (set by `@blindspot/web`)
+- [x] Scent snapshot payload includes `traceparent` if present
+- [x] Server stores `traceparent` on the snapshot record
+- [x] `GET /v1/identity/:id/timeline` includes `traceparent` references — each drift event links to the OTel trace that triggered it
+- [x] Optional: Scent server emits its own OTel spans (identity resolution latency, risk scoring time) to the configured OTLP endpoint
 
 ### blindspot-ux integration package
 
-- [ ] New package: `@irregular/scent-otel` (or `@blindspot/scent-bridge`)
-- [ ] Adds `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@blindspot/web` span
-- [ ] Zero-config when both SDKs are present: auto-detects `@blindspot/web` context
+- [x] New package: `@irregular/scent-otel` (or `@blindspot/scent-bridge`)
+- [x] Adds `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@blindspot/web` span
+- [x] Zero-config when both SDKs are present: auto-detects `@blindspot/web` context
 
 ### Deliverable
 A single demo app running both `@blindspot/web` and `@irregular/scent-sdk`. The Grafana Tempo trace for a login event includes `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as span attributes.

@@ -73,12 +73,15 @@ identityRouter.get('/:id/timeline', async (req: Request, res: Response): Promise
     removed_signals: string[];
     before_snapshot_id: string;
     after_snapshot_id: string;
+    traceparent: string | null;
   }[]>`
     SELECT d.id, d.timestamp, d.classification, d.entropy,
            d.changed_signals, d.added_signals, d.removed_signals,
-           d.before_snapshot_id, d.after_snapshot_id
+           d.before_snapshot_id, d.after_snapshot_id,
+           s.traceparent
     FROM drifts d
     JOIN identities i ON i.id = d.identity_id
+    JOIN snapshots s ON s.id = d.after_snapshot_id
     WHERE d.identity_id = ${req.params['id']!} AND i.project_id = ${project[0].id}
     ORDER BY d.timestamp ASC
   `;

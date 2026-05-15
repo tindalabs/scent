@@ -1,3 +1,6 @@
+import { startTracing } from './tracing.js';
+startTracing();
+
 import express from 'express';
 import { migrate } from './db/migrate.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';

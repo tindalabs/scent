@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api';
 import { Router, type Request, type Response, type IRouter } from 'express';
 import type { TransactionSql } from 'postgres';
 import { EventsBatchSchema, deriveEventId } from '../schemas/events.js';
@@ -18,6 +19,8 @@ import { absenceWeightOverrides, updateSignalProfile } from '../engine/signal-pr
 import type { SignalProfile } from '../engine/signal-profile.js';
 import { assessRisk } from '../risk/assess.js';
 import { deliverWebhooks } from '../risk/webhook.js';
+
+const tracer = trace.getTracer('scent-server');
 
 export const eventsRouter: IRouter = Router();
 
@@ -62,6 +65,11 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   }> = [];
 
   for (const snap of parsed.data.snapshots) {
+    await tracer.startActiveSpan('scent.identity_resolution', async (span) => {
+    try {
+    span.setAttribute('scent.identity.input_id', snap.identityId);
+    if (snap.traceparent) span.setAttribute('scent.traceparent', snap.traceparent);
+
     const eventId = deriveEventId(snap.identityId, snap.timestamp);
 
     // Idempotent deduplication: identical event_id is a no-op.
@@ -69,8 +77,9 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       SELECT id FROM snapshots WHERE event_id = ${eventId} LIMIT 1
     `;
     if (existing[0]) {
+      span.setAttribute('scent.identity.deduplicated', true);
       results.push({ identityId: snap.identityId, confidence: 1, isNew: false, continuity: 'confirmed', risk: { score: 0, band: 'low', flags: [] } });
-      continue;
+      return;
     }
 
     const signals = snap.signals as SignalMap;
@@ -245,7 +254,17 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       void deliverWebhooks(db, projectId, resolvedId, newSnapId, assessment);
     }
 
+    span.setAttributes({
+      'scent.identity.id': resolvedId,
+      'scent.identity.is_new': isNew,
+      'scent.identity.confidence': finalConfidence,
+    });
+
     results.push({ identityId: resolvedId, confidence: finalConfidence, isNew, continuity, risk, ...(ambiguous ? { ambiguous: true } : {}) });
+    } finally {
+      span.end();
+    }
+    }); // end startActiveSpan
   }
 
   res.json({ results });
