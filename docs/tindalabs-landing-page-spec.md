@@ -46,7 +46,7 @@ The page should feel like a real product, not a concept. Use realistic-looking U
 ```
 
 - Logo: wordmark in Inter, the dot in `tindalabs.dev` can be colored `#6366f1`
-- Nav links: Docs, Observatory (links to localhost:3001 in dev, self-hosted in prod), GitHub (link to repo)
+- Nav links: Docs, Observatory (links to localhost:4000 in dev, self-hosted in prod), GitHub (link to repo)
 - CTA button: `Get started →` — filled indigo, pill shape, glow
 - Sticky on scroll with `backdrop-filter: blur(12px)` and a thin `1px solid rgba(255,255,255,0.06)` bottom border
 
@@ -301,7 +301,7 @@ Running in 5 minutes.
    await sdk.flush()
 
 4  Open the Observatory
-   localhost:3001
+   localhost:4000
 ```
 
 **Code block (right) — tabbed:**
@@ -406,7 +406,7 @@ One Docker Compose file brings up the full stack.
 **Architecture list:**
 ```
 ● scent-server     Node.js API (port 3000)
-● scent-observatory  React UI (port 3001)
+● scent-observatory  React UI (port 4000)
 ● PostgreSQL       Identity graph + drift history
 ● Redis            Rate limiting + session cache
 ● OTel Collector   Trace forwarding (optional)
@@ -420,7 +420,7 @@ $ docker compose up
 ✓ postgres       healthy
 ✓ redis          healthy
 ✓ scent-server   listening on :3000
-✓ observatory    serving on :3001
+✓ observatory    serving on :4000
 ```
 
 ---
@@ -467,7 +467,7 @@ tindalabs.dev   Docs   API   Signals   Persistence Policies   GitHub   MIT Licen
 
 ## Content not yet available
 
-- Real Observatory screenshot (take once the demo stack is running: `docker compose up`, open `localhost:3001`)
+- Real Observatory screenshot (take once the demo stack is running: `docker compose up`, open `localhost:4000`)
 - Final GitHub repo URL
 - Production `tindalabs.dev` domain DNS
 

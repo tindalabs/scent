@@ -290,7 +290,7 @@ scent.on('identity_resolved', handler)
 - [x] TanStack Query for data fetching
 
 ### Deliverable
-Observatory running at `localhost:3001` (Docker Compose). Shows live identity data from the demo app. Drift timeline and signal explainability panels functional.
+Observatory running at `localhost:4000` (Docker Compose). Shows live identity data from the demo app. Drift timeline and signal explainability panels functional.
 
 ---
 

@@ -13,7 +13,7 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { clustersRouter } from './routes/clusters.js';
 
 const ALLOWED_ORIGINS = [
-  'http://localhost:3001',  // Observatory (docker-compose)
+  'http://localhost:4000',  // Observatory (docker-compose)
   'http://localhost:5173',  // Vite dev (demo app)
   'http://localhost:5174',  // Vite dev (alternate port)
   'http://localhost:4173',  // Vite preview

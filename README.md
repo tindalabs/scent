@@ -62,7 +62,7 @@ docker compose up
 
 This starts:
 - **scent-server** on `localhost:3000` (identity API)
-- **scent-observatory** on `localhost:3001` (identity UI)
+- **scent-observatory** on `localhost:4000` (identity UI)
 - PostgreSQL, Redis, OTel Collector, Grafana Tempo
 
 ### 2. Install the SDK
@@ -94,7 +94,7 @@ if (obs.identity.continuity === 'unknown' || obs.risk.score > 0.6) {
 
 ### 4. Open the Observatory
 
-`http://localhost:3001` — browse identities, inspect signal profiles, see drift timelines, review risk flags.
+`http://localhost:4000` — browse identities, inspect signal profiles, see drift timelines, review risk flags.
 
 ---
 
@@ -220,7 +220,7 @@ The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse 
   ├── Risk scoring (6 anomaly detectors)
   └── REST query API
 
-@tindalabs/scent-observatory  (React, port 3001)
+@tindalabs/scent-observatory  (React, port 4000)
   ├── Identity list + detail pages
   ├── Drift timeline visualization
   └── Risk dashboard

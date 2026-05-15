@@ -98,7 +98,7 @@ See [Persistence Policies](persistence-policies.md) for a full breakdown.
 
 ## Observatory vs FingerprintJS dashboard
 
-FingerprintJS Pro provides a dashboard for visitor lookup. The Scent Observatory (self-hosted at `localhost:3001`) provides:
+FingerprintJS Pro provides a dashboard for visitor lookup. The Scent Observatory (self-hosted at `localhost:4000`) provides:
 
 - Identity list with confidence, risk, and last-seen
 - Per-identity drift timeline with signal-level change history
