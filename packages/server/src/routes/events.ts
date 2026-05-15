@@ -164,7 +164,7 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       if (isNew) {
         await tx`
           INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile)
-          VALUES (${resolvedId}, ${projectId}, ${confidenceBand}, 'low', ${JSON.stringify(updatedProfile)}::jsonb)
+          VALUES (${resolvedId}, ${projectId}, ${confidenceBand}, 'low', ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)})
           ON CONFLICT (id) DO NOTHING
         `;
       } else {
@@ -173,7 +173,7 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
           SET last_seen = now(),
               snapshot_count = snapshot_count + 1,
               confidence_band = ${confidenceBand},
-              signal_profile = ${JSON.stringify(updatedProfile)}::jsonb
+              signal_profile = ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)}
           WHERE id = ${resolvedId}
         `;
       }

@@ -33,7 +33,8 @@ export function updateSignalProfile(
   incoming: SignalMap,
   timestamp: string,
 ): SignalProfile {
-  const updated: SignalProfile = { ...existing };
+  const safe = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
+  const updated: SignalProfile = { ...safe };
 
   for (const key of Object.keys(updated)) {
     const val = incoming[key];
