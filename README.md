@@ -228,6 +228,37 @@ The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse 
 
 ---
 
+## The Tindalabs stack
+
+Scent is one of three composable browser-layer packages:
+
+| Package | What it does |
+|---|---|
+| **[@tindalabs/blindspot](https://github.com/tindalabs/blindspot)** | Privacy-first OTel frontend observability |
+| **[@tindalabs/shield](https://github.com/tindalabs/shield)** | Tamper detection & active content protection |
+| **[@tindalabs/scent](https://github.com/tindalabs/scent)** | Probabilistic identity continuity |
+
+### Integrating Shield signals
+
+Pass `@tindalabs/shield` assessment results directly into `observe()` so the server's risk engine sees tamper signals alongside the browser fingerprint:
+
+```ts
+import { init } from '@tindalabs/scent-sdk';
+import { assess } from '@tindalabs/shield';
+
+const scent = init({ apiKey: '...', endpoint: '...' });
+const shield = await assess();
+
+const obs = await scent.observe({
+  extraSignals: shield.signals,
+});
+await scent.flush();
+```
+
+The `shield.*` signals become first-class fields in the stored snapshot and are visible in drift timelines and risk assessments in the Observatory.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
