@@ -258,36 +258,36 @@ scent.on('identity_resolved', handler)
 
 ### Identity explorer
 
-- [ ] Identity list view: searchable table of all known identities, sortable by confidence / risk / last seen
-- [ ] Identity detail page:
+- [x] Identity list view: searchable table of all known identities, sortable by confidence / risk / last seen
+- [x] Identity detail page:
   - Confidence score with trend sparkline
   - Risk score with active flags
   - Current signal profile (table: signal name, value, stability class, last changed)
   - Signal explainability panel: "Matched: 11/14 stable signals. Mismatched: canvas hash (minor drift). Absent: battery API."
-- [ ] Drift timeline: chronological list of snapshots with delta highlights
+- [x] Drift timeline: chronological list of snapshots with delta highlights
 
 ### Drift visualization
 
-- [ ] Per-identity drift chart: x = time, y = entropy magnitude, color = drift classification
-- [ ] Signal stability heatmap: which signals are most volatile for this identity over time
+- [x] Per-identity drift chart: x = time, y = entropy magnitude, color = drift classification
+- [x] Signal stability heatmap: which signals are most volatile for this identity over time
 
 ### Coordinated behavior view
 
-- [ ] Cluster detail: all identities in a suspected coordination cluster, with shared signal breakdown
-- [ ] "Why are these linked?" panel: explicit signal overlap explanation
+- [x] Cluster detail: all identities in a suspected coordination cluster, with shared signal breakdown
+- [x] "Why are these linked?" panel: explicit signal overlap explanation
 
 ### Project dashboard
 
-- [ ] Summary metrics: total identities, new today, high-risk count, average confidence
-- [ ] Risk distribution histogram
-- [ ] Drift rate trend (are more identities drifting this week vs. last?)
+- [x] Summary metrics: total identities, new today, high-risk count, average confidence
+- [x] Risk distribution histogram
+- [x] Drift rate trend (are more identities drifting this week vs. last?)
 
 ### Tech stack for Observatory
 
-- [ ] React + Vite (consistent with blindspot-ux adapter pattern)
-- [ ] Recharts or Tremor for data visualization
-- [ ] shadcn/ui for component library (minimal, unstyled, accessible)
-- [ ] TanStack Query for data fetching
+- [x] React + Vite (consistent with blindspot-ux adapter pattern)
+- [x] Recharts or Tremor for data visualization
+- [x] shadcn/ui for component library (minimal, unstyled, accessible)
+- [x] TanStack Query for data fetching
 
 ### Deliverable
 Observatory running at `localhost:3001` (Docker Compose). Shows live identity data from the demo app. Drift timeline and signal explainability panels functional.

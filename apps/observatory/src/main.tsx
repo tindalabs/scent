@@ -1,15 +1,28 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import './index.css';
+import { App } from './App.js';
 
-function App(): JSX.Element {
-  return (
-    <main style={{ fontFamily: 'monospace', maxWidth: 640, margin: '3rem auto', padding: '0 1rem' }}>
-      <h2>Scent Observatory</h2>
-      <p style={{ color: '#666' }}>Phase 4 — UI implementation pending.</p>
-    </main>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+});
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
-createRoot(root).render(<StrictMode><App /></StrictMode>);
+
+createRoot(root).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </StrictMode>,
+);
