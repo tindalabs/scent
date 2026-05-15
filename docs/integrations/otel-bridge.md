@@ -6,7 +6,7 @@ Scent can attach identity and risk context to every OpenTelemetry span in your a
 
 Two things happen when the bridge is active:
 
-1. **Traceparent flows client → server.** At `observe()` time, the bridge reads the W3C `traceparent` from the currently active OTel span and includes it in the snapshot payload. The server stores it on the snapshot row, and `GET /v1/identity/:id/timeline` returns it per drift event — so you can jump from an identity timeline directly into a Tempo trace.
+1. **Traceparent flows client → server.** At `observe()` time, the bridge reads the W3C `traceparent` from the current page trace and includes it in the snapshot payload. The server stores it on the snapshot row, and `GET /v1/identity/:id/timeline` returns it per drift event — so you can jump from an identity timeline directly into a Tempo trace.
 
 2. **Scent attributes flow onto spans.** After `observe()` resolves, the bridge sets these attributes on the active span:
 
@@ -21,7 +21,7 @@ Two things happen when the bridge is active:
 
 ## Requirements
 
-- `@opentelemetry/api` ≥ 1.0.0 must be installed by your application. The bridge uses only the stable API layer — it works with any OTel SDK (Node, browser, Deno).
+- `@opentelemetry/api` ≥ 1.0.0 must be installed by your application. The bridge uses only the stable API layer.
 - The bridge is a no-op when no active span exists. It never throws.
 
 ## Installation
@@ -33,9 +33,31 @@ npm install @irregular/scent-sdk @irregular/scent-otel
 
 ## Usage
 
-### Option A — `ScentOtelBridge` (recommended)
+### With `@blindspot/web` (recommended)
 
-The bridge wraps the SDK and handles both directions automatically.
+`@blindspot/web` manages a long-lived route span for the page. Because browser OTel context propagation doesn't survive async boundaries, you should use `getSessionTraceparent()` from `@blindspot/web` directly rather than relying on `readTraceparent()` from the OTel API. `getSessionTraceparent()` reads the stored route span directly, so it works regardless of where in the call stack `observe()` runs.
+
+```typescript
+import { init } from '@irregular/scent-sdk';
+import { getSessionTraceparent } from '@blindspot/web';  // reads the active route span
+import { ScentOtelBridge } from '@irregular/scent-otel';
+
+const sdk = init({
+  apiKey: 'your-api-key',
+  traceparentProvider: getSessionTraceparent, // blindspot route span → snapshot
+});
+
+const bridge = new ScentOtelBridge(sdk);
+
+const obs = await bridge.observe(); // traceparent captured + span annotated
+await bridge.flush();               // sends snapshot with traceparent to server
+```
+
+`scent.identity.*` and `scent.risk.*` attributes are set on the active blindspot-ux span, so they appear on every child span (clicks, fetches, vitals) automatically — they inherit the trace context.
+
+### Without `@blindspot/web`
+
+When running without blindspot-ux, use `readTraceparent()` instead. This reads from `@opentelemetry/api`'s active span, which works when `observe()` is called synchronously inside a `startActiveSpan` callback.
 
 ```typescript
 import { init } from '@irregular/scent-sdk';
@@ -43,63 +65,59 @@ import { ScentOtelBridge, readTraceparent } from '@irregular/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
-  traceparentProvider: readTraceparent, // inject traceparent at observe() time
+  traceparentProvider: readTraceparent,
 });
 
 const bridge = new ScentOtelBridge(sdk);
 
-// Inside an active OTel span:
-const obs = await bridge.observe(); // traceparent captured + span annotated
-await bridge.flush();               // sends snapshot with traceparent to server
-
-// obs.identity.id, obs.identity.confidence, etc. are unchanged
+tracer.startActiveSpan('login', async (span) => {
+  const obs = await bridge.observe(); // span is active here — traceparent captured
+  await bridge.flush();
+  span.end();
+});
 ```
 
-### Option B — manual wiring
+### Manual wiring
 
-If you prefer not to use the wrapper class, wire the two functions yourself:
+If you prefer not to use the `ScentOtelBridge` wrapper:
 
 ```typescript
 import { init } from '@irregular/scent-sdk';
-import { readTraceparent, attachScentAttributes } from '@irregular/scent-otel';
+import { getSessionTraceparent } from '@blindspot/web';
+import { attachScentAttributes } from '@irregular/scent-otel';
 
 const sdk = init({
   apiKey: 'your-api-key',
-  traceparentProvider: readTraceparent,
+  traceparentProvider: getSessionTraceparent,
 });
 
 const obs = await sdk.observe();
-attachScentAttributes(obs);         // attaches to the currently active span
+attachScentAttributes(obs);  // attaches to the currently active span
 await sdk.flush();
 ```
 
-`attachScentAttributes` also accepts an explicit span as a second argument if you want to target a specific span rather than the active one:
+`attachScentAttributes` also accepts an explicit span as a second argument:
 
 ```typescript
 import { trace } from '@opentelemetry/api';
-
-const span = trace.getActiveSpan();
-attachScentAttributes(obs, span);
+attachScentAttributes(obs, trace.getActiveSpan());
 ```
 
-## React hook example
-
-If you're using the SDK's React adapter, attach attributes inside a `useEffect` after the observation resolves:
+## React example
 
 ```tsx
-import { useScent } from '@irregular/scent-sdk/react';
-import { attachScentAttributes } from '@irregular/scent-otel';
+import { init } from '@irregular/scent-sdk';
+import { getSessionTraceparent } from '@blindspot/web';
+import { ScentOtelBridge } from '@irregular/scent-otel';
 import { useEffect } from 'react';
 
-function LoginPage() {
-  const { observation, flush } = useScent();
+const sdk = init({ apiKey: '...', traceparentProvider: getSessionTraceparent });
+const bridge = new ScentOtelBridge(sdk);
 
+function LoginPage() {
   useEffect(() => {
-    if (observation) {
-      attachScentAttributes(observation);
-      void flush();
-    }
-  }, [observation, flush]);
+    bridge.observe().then(() => bridge.flush());
+  }, []);
 }
 ```
 
@@ -130,18 +148,19 @@ The Docker Compose dev stack already includes an OTel Collector sidecar. Point `
 ```
 Browser                          Server                        Tracing backend
 ───────                          ──────                        ───────────────
-@blindspot/web creates span
-  └─ traceparent: 00-abc-def-01
+@blindspot/web creates route span
+  └─ stored as _routeSpan
        │
        ▼
-scent-otel reads traceparent ──► POST /v1/events (traceparent in payload)
-                                   └─ stored on snapshot row
-                                   └─ scent.identity_resolution span
-                                        └─ scent.traceparent = 00-abc-def-01
-                                             │
-                                             ▼
-                                         Tempo trace includes
-                                         scent.identity.id + risk
+getSessionTraceparent() ────────► POST /v1/events (traceparent in payload)
+  reads _routeSpan directly         └─ stored on snapshot row
+  (no async context needed)         └─ scent.identity_resolution span
+                                         └─ scent.traceparent = 00-abc-…
+                                              │
+                                              ▼
+attachScentAttributes()               Tempo trace includes
+  sets scent.* on route span  ──────► scent.identity.id + risk on all
+  → inherited by child spans           child spans (clicks, fetches…)
 ```
 
-This lets you filter traces by identity, or click through from an identity's drift timeline to the exact Tempo trace that triggered it.
+This lets you filter traces by identity, correlate fraud signals with specific user interactions, or jump from an identity's drift timeline into the exact Tempo trace that triggered it.
