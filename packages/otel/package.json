@@ -1,0 +1,29 @@
+{
+  "name": "@irregular/scent-otel",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@irregular/scent-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@irregular/scent-engine": "workspace:*",
+    "@opentelemetry/api": "^1.9.1",
+    "typescript": "^5.8.0"
+  }
+}
