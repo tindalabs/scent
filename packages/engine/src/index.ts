@@ -31,3 +31,5 @@ export {
 } from './matching/confidence.js';
 export { diffSnapshots } from './drift/index.js';
 export type { DriftResult } from './drift/index.js';
+export { detectAutomation } from './risk/automation.js';
+export { compositeRiskScore, scoreToRiskBand } from './risk/scorer.js';
