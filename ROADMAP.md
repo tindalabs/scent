@@ -173,17 +173,17 @@ scent.on('identity_resolved', handler)
   - **Moderately stable** (weight 0.4–0.7): Screen resolution, timezone, platform, connection type
   - **Volatile** (weight 0.1–0.3): IP, user agent version, plugin list, battery
 - [x] Time-decay function: signal weights decay toward volatile as time between observations grows
-- [ ] Configurable weight overrides per project (enterprise feature)
+- [ ] Configurable weight overrides per project (enterprise feature — deferred to Phase 7)
 
 ### Probabilistic matching engine
 
 - [x] SimHash-based approximate nearest neighbor search for candidate retrieval
 - [x] Jaccard similarity scoring on signal token sets
 - [x] Weighted signal comparison: per-signal match/mismatch/absent scoring
-- [ ] Drift tolerance thresholds: allow N signals to have changed without reducing confidence below threshold
+- [x] Drift tolerance thresholds: allow N signals to have changed without reducing confidence below threshold
 - [x] Confidence score normalization: output a calibrated 0–1 probability (not a raw similarity score)
-- [ ] Identity cluster linking: when two previously-distinct identities are resolved as the same entity, merge their history
-- [ ] Candidate deduplication: prevent single observation from matching multiple existing identities above threshold
+- [x] Identity cluster linking: when two previously-distinct identities are resolved as the same entity, merge their history
+- [x] Candidate deduplication: prevent single observation from matching multiple existing identities above threshold
 
 ### Drift engine
 
@@ -195,7 +195,7 @@ scent.on('identity_resolved', handler)
   - `significant` — multiple stable signals changed simultaneously (VPN + browser update + font change)
   - `suspicious` — drift pattern matches known anti-fingerprinting or automation signatures
 - [x] Drift history stored per identity: full timeline of snapshots and deltas
-- [ ] Signal decay: if a signal is absent for N consecutive observations, reduce its weight in that identity's profile
+- [x] Signal decay: if a signal is absent for N consecutive observations, reduce its weight in that identity's profile
 
 ### Identity persistence (server-side)
 
@@ -205,7 +205,7 @@ scent.on('identity_resolved', handler)
   - `drifts` table (delta payload, entropy score, classification, before/after snapshot FKs)
   - `clusters` table (linked identity groups for coordinated behavior)
 - [x] Identity resolution query: O(log n) candidate lookup via SimHash index
-- [ ] Merge history: audit trail when identities are clustered
+- [x] Merge history: audit trail when identities are clustered
 
 ### REST query API
 
