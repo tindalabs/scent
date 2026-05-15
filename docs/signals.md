@@ -8,13 +8,15 @@ Signal collection and signal persistence are **separate concerns**. Every signal
 
 ## Stability classes
 
-Each signal is assigned a stability class that informs the server-side identity engine's weighting model (Phase 2). A signal that changes often contributes less to identity continuity than one that is rock-solid across sessions.
+Each signal is assigned a stability class that controls its base weight in the server-side identity engine. A signal that changes often contributes less to identity continuity than one that is rock-solid across sessions.
 
-| Class | Meaning | Decay rate | Examples |
+| Class | Base weight | Meaning | Examples |
 |---|---|---|---|
-| `stable` | Rarely or never changes for a real user on the same device | Low | Canvas hash, audio hash, font list, hardware concurrency |
-| `moderate` | Changes infrequently — browser updates, OS upgrades, user preference changes | Medium | Screen resolution, locale, plugins, CSS media preferences |
-| `volatile` | Can change every session | High | Network type, IP-derived signals, anti-tamper flags |
+| `stable` | 0.9 | Rarely or never changes for a real user on the same device | Canvas hash, audio hash, font list, hardware concurrency |
+| `moderate` | 0.55 | Changes infrequently — browser updates, OS upgrades, user preference changes | Screen resolution, locale, plugins, CSS media preferences |
+| `volatile` | 0.15 | Can change every session | Network type, anti-tamper flags |
+
+Weights are also subject to **time-decay** (exponential, ~50% at 90 days) and **absence decay**: a signal absent from 3+ consecutive observations for a given identity has its weight halved; 6+ observations cuts it to 25%. See [Identity engine behaviour](#identity-engine-behaviour) below.
 
 ---
 
@@ -236,7 +238,7 @@ Anti-tamper signals are **risk indicators**, not identity signals. They feed int
 | `tamper.get_context_patched` | `boolean` | `HTMLCanvasElement.prototype.getContext` has been overridden. |
 | `tamper.webgl_patched` | `boolean` | `WebGLRenderingContext.prototype.getParameter` has been overridden. |
 
-**Notes:** Anti-fingerprinting browser extensions (LibreWolf, Brave Shields, canvas-fingerprint-defender) commonly patch these methods to return randomised output. A patched API means canvas and WebGL signals from this session should be down-weighted in matching. This is a critical input to the signal weighting model in Phase 2.
+**Notes:** Anti-fingerprinting browser extensions (LibreWolf, Brave Shields, canvas-fingerprint-defender) commonly patch these methods to return randomised output. When any of these flags is `true`, the identity engine excludes the corresponding canvas/WebGL signals from the SimHash and downgrades their Jaccard weight to 0 for that snapshot.
 
 ---
 
@@ -260,7 +262,7 @@ Anti-tamper signals are **risk indicators**, not identity signals. They feed int
 |---|---|---|
 | `tamper.canvas_noise_spoofed` | `boolean` | Whether two identical canvas drawings produce different `toDataURL()` outputs, indicating per-render random noise injection (Tor Browser behaviour, canvas-fingerprint-defender). |
 
-**Notes:** When `true`, `canvas.2d` from this session is unreliable for identity matching and should be excluded from the SimHash input. The identity engine must check this flag before using canvas signals in Phase 2.
+**Notes:** When `true`, `canvas.2d` from this session is unreliable for identity matching. The identity engine excludes `canvas.2d` from the SimHash and sets its Jaccard weight to 0 for the affected snapshot.
 
 ---
 
@@ -272,6 +274,56 @@ These signals are architecturally supported (the `buildCollectors()` factory che
 |---|---|---|---|
 | WebRTC local IP | `options.signals.webrtc: true` | `webrtc.local_ip`, `webrtc.public_ip` | Exposes local network topology; legally sensitive in many jurisdictions |
 | Battery API | `options.signals.battery: true` | `battery.level`, `battery.charging` | Highly invasive; removed from Firefox and Safari; deprecated in Chrome |
+
+---
+
+## Identity engine behaviour
+
+This section describes how the server-side engine (`packages/engine`) uses the signals above to resolve identity continuity. It is primarily for engineers and DPOs auditing the matching logic.
+
+### Signal weighting
+
+The engine computes a **weighted Jaccard similarity** between an incoming snapshot and each stored identity profile. Each signal contributes weight according to its stability class (see table above). Tamper signals (`tamper.*`) are excluded from the Jaccard computation — they feed the risk engine, not identity continuity scoring.
+
+### Drift tolerance
+
+By default the engine **tolerates 1 mismatch** before penalising confidence. The highest-weight mismatched signal is removed from both sides of the Jaccard ratio rather than counted against the identity. This means a single canvas hash change (e.g. from a browser update) does not drop a `confirmed` identity to `probable`. Tolerance is configurable per `weightedJaccard()` call and will be exposed as a per-project setting in Phase 7.
+
+### Confidence bands
+
+| Band | Score range | `continuity` value | Meaning |
+|---|---|---|---|
+| `high` | ≥ 0.85 | `confirmed` | Very likely the same entity |
+| `medium` | 0.60–0.84 | `probable` | Probably the same entity; recommend step-up auth |
+| `low` | 0.35–0.59 | `uncertain` | Possible match; treat as suspicious |
+| `unknown` | < 0.35 | `unknown` | No match found; new identity created |
+
+### Signal decay
+
+Each identity carries a per-signal absence history. If a signal is absent from an incoming snapshot that would otherwise have matched:
+
+- **3–5 consecutive absences**: base weight × 0.5 for that identity
+- **6+ consecutive absences**: base weight × 0.25 for that identity
+
+This prevents a browser API going silent (e.g. `hardware.memory` removed in a future browser) from permanently penalising a returning identity.
+
+### Candidate retrieval
+
+Before running full Jaccard comparison the engine computes a 64-bit **SimHash** of each snapshot's stable signals and filters candidates by Hamming distance ≤ 10 bits. Only candidates passing this filter undergo weighted Jaccard scoring.
+
+### Cluster linking
+
+When two stored identities both score ≥ 0.90 against the same incoming snapshot, they are linked into a coordination cluster. The merge is recorded in the `cluster_merges` audit table with confidence score and reason.
+
+### Anti-tamper signal integration
+
+| Tamper flag | Effect on matching |
+|---|---|
+| `tamper.canvas_patched`, `tamper.webgl_patched` | `canvas.*` and `webgl.*` signals excluded from SimHash and Jaccard for this snapshot |
+| `tamper.canvas_noise_spoofed` | `canvas.2d` excluded from SimHash and Jaccard weight set to 0 |
+| `tamper.webdriver`, `tamper.cdp`, `tamper.playwright` | Passed to risk engine; no effect on identity confidence |
+| `tamper.headless_*` | Passed to risk engine; no effect on identity confidence |
+| `tamper.devtools_open` | Passed to risk engine; no effect on identity confidence |
 
 ---
 
