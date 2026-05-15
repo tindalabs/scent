@@ -325,15 +325,15 @@ A single demo app running both `@blindspot/web` and `@irregular/scent-sdk`. The 
 
 ### Self-hosting
 
-- [ ] Production-grade `docker-compose.yml`:
+- [x] Production-grade `docker-compose.yml`:
   - scent-server
   - scent-observatory
   - PostgreSQL with init migrations
   - Redis
   - Optional: OTel Collector sidecar
-- [ ] Environment variable configuration reference (API keys, DB URL, persistence policy defaults, webhook endpoints)
-- [ ] One-command database migration: `scent migrate`
-- [ ] Health check endpoint: `GET /health`
+- [x] Environment variable configuration reference (API keys, DB URL, persistence policy defaults, webhook endpoints)
+- [x] One-command database migration: `scent migrate`
+- [x] Health check endpoint: `GET /health`
 - [ ] Helm chart (stretch goal — community contribution friendly)
 
 ### Documentation

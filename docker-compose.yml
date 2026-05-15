@@ -9,7 +9,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/00_init.sql
+      - ./infra/postgres/seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scent"]
       interval: 5s
@@ -27,6 +28,37 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  scent-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://scent:scent_dev@postgres:5432/scent
+      REDIS_URL: redis://redis:6379
+      PORT: "3000"
+      OTEL_SERVICE_NAME: scent-server
+      OTEL_SERVICE_VERSION: "0.0.1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scent-observatory:
+    build:
+      context: .
+      dockerfile: apps/observatory/Dockerfile
+      args:
+        VITE_API_BASE: http://localhost:3000
+        VITE_API_KEY: demo-api-key-dev
+    ports:
+      - "3001:80"
+    depends_on:
+      - scent-server
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest

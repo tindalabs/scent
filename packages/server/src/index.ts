@@ -2,6 +2,7 @@ import { startTracing } from './tracing.js';
 startTracing();
 
 import express from 'express';
+import cors from 'cors';
 import { migrate } from './db/migrate.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { eventsRouter } from './routes/events.js';
@@ -11,7 +12,21 @@ import { resolveRouter } from './routes/resolve.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { clustersRouter } from './routes/clusters.js';
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:3001',  // Observatory (docker-compose)
+  'http://localhost:5173',  // Vite dev (demo app)
+  'http://localhost:4173',  // Vite preview
+];
+
 const app = express();
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (curl, server-to-server) and whitelisted origins.
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
