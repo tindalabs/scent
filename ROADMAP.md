@@ -338,13 +338,13 @@ A single demo app running both `@blindspot/web` and `@irregular/scent-sdk`. The 
 
 ### Documentation
 
-- [ ] `README.md`: 5-minute quickstart (install SDK, get first identity resolution)
-- [ ] `docs/concepts.md`: probabilistic identity, drift, confidence, persistence policies — explain the mental model
-- [ ] `docs/signals.md`: full list of collected signals, stability class, legal basis notes for GDPR
-- [ ] `docs/persistence-policies.md`: what each policy collects and why — this is your legal/DPO document
-- [ ] `docs/api.md`: full REST API reference
-- [ ] `docs/integrations/blindspot-ux.md`: OTel bridge setup guide
-- [ ] Migration guide: "Coming from FingerprintJS"
+- [x] `README.md`: 5-minute quickstart (install SDK, get first identity resolution)
+- [x] `docs/concepts.md`: probabilistic identity, drift, confidence, persistence policies — explain the mental model
+- [x] `docs/signals.md`: full list of collected signals, stability class, legal basis notes for GDPR
+- [x] `docs/persistence-policies.md`: what each policy collects and why — this is your legal/DPO document
+- [x] `docs/api.md`: full REST API reference
+- [x] `docs/integrations/blindspot-ux.md`: OTel bridge setup guide
+- [x] Migration guide: "Coming from FingerprintJS"
 
 ### GTM
 
