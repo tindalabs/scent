@@ -226,25 +226,25 @@ scent.on('identity_resolved', handler)
 
 ### Heuristic anomaly detectors
 
-- [ ] **Impossible transition detector**: geographic or network IP jump that exceeds plausible travel speed
-- [ ] **Entropy instability detector**: identity whose signal profile changes dramatically on every observation (anti-fingerprinting tool signature)
-- [ ] **Automation confidence**: combine SDK-side anti-tamper signals into a server-side automation score
-- [ ] **Storage amnesia pattern**: identity that keeps appearing as "new" from the same device signals (aggressive cookie clearing, private mode cycling)
-- [ ] **Rapid re-registration pattern**: N new identities from the same device within a time window
-- [ ] **Coordinated behavior detector**: cluster of identities with identical or near-identical stable signals but different volatile signals — likely the same operator with identity rotation
+- [x] **Impossible transition detector**: geographic or network IP jump that exceeds plausible travel speed
+- [x] **Entropy instability detector**: identity whose signal profile changes dramatically on every observation (anti-fingerprinting tool signature)
+- [x] **Automation confidence**: combine SDK-side anti-tamper signals into a server-side automation score
+- [x] **Storage amnesia pattern**: identity that keeps appearing as "new" from the same device signals (aggressive cookie clearing, private mode cycling)
+- [x] **Rapid re-registration pattern**: N new identities from the same device within a time window
+- [x] **Coordinated behavior detector**: cluster of identities with identical or near-identical stable signals but different volatile signals — likely the same operator with identity rotation
 
 ### Risk scoring model
 
-- [ ] Composite risk score: weighted combination of active anomaly detector outputs
-- [ ] Risk band classification: `low` / `medium` / `high` / `critical`
-- [ ] Per-flag explanations: each risk flag has a human-readable reason string
-- [ ] Risk score included in `POST /v1/resolve` response for inline login flow use
-- [ ] Risk history per identity: track score evolution over time
+- [x] Composite risk score: weighted combination of active anomaly detector outputs
+- [x] Risk band classification: `low` / `medium` / `high` / `critical`
+- [x] Per-flag explanations: each risk flag has a human-readable reason string
+- [x] Risk score included in `POST /v1/resolve` response for inline login flow use
+- [x] Risk history per identity: track score evolution over time
 
 ### Alerting hooks (for SaaS tier)
 
-- [ ] Webhook delivery on `risk_elevated` events (configurable threshold)
-- [ ] Payload includes identity ID, risk score, active flags, and triggering snapshot diff
+- [x] Webhook delivery on `risk_elevated` events (configurable threshold)
+- [x] Payload includes identity ID, risk score, active flags, and triggering snapshot diff
 
 ### Deliverable
 `POST /v1/resolve` returns a risk score with flags. Demo app simulates a credential-stuffing pattern (5 logins, rotating emails, same device) and shows all flagged as a coordinated cluster.
