@@ -205,6 +205,24 @@ The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse 
 
 ---
 
+## Packages
+
+| Package | Description |
+|---|---|
+| [`@tindalabs/scent-sdk`](packages/sdk) | Browser SDK — signal collection, multi-layer persistence, OTel bridge |
+| [`@tindalabs/scent-engine`](packages/engine) | Probabilistic matching — SimHash, weighted Jaccard, drift, risk scoring |
+| [`@tindalabs/scent-otel`](packages/otel) | OTel bridge — attaches `scent.*` identity attributes to existing spans |
+| [`@tindalabs/scent-server`](packages/server) | Node.js API server — identity resolution, drift history, risk assessment |
+
+**Apps** (not published to npm):
+
+| App | Description |
+|---|---|
+| `Observatory` | React UI — identity list, drift timelines, risk dashboard (port 4000) |
+| `demo` | Standalone demo app wiring all packages together (port 5174) |
+
+---
+
 ## Architecture
 
 ```
