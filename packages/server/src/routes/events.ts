@@ -16,6 +16,8 @@ import {
 import type { SignalMap, PersistencePolicy } from '@irregular/scent-engine';
 import { absenceWeightOverrides, updateSignalProfile } from '../engine/signal-profile.js';
 import type { SignalProfile } from '../engine/signal-profile.js';
+import { assessRisk } from '../risk/assess.js';
+import { deliverWebhooks } from '../risk/webhook.js';
 
 export const eventsRouter: IRouter = Router();
 
@@ -44,11 +46,18 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   }
   const projectId = project[0].id;
 
+  // Capture the client IP server-side. Trust X-Forwarded-For only when behind
+  // a known proxy; for Phase 3 we use Express's req.ip which respects trust proxy.
+  const clientIp = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
+    ?? req.ip
+    ?? null;
+
   const results: Array<{
     identityId: string;
     confidence: number;
     isNew: boolean;
     continuity: string;
+    risk: { score: number; band: string; flags: string[] };
     ambiguous?: boolean;
   }> = [];
 
@@ -60,7 +69,7 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       SELECT id FROM snapshots WHERE event_id = ${eventId} LIMIT 1
     `;
     if (existing[0]) {
-      results.push({ identityId: snap.identityId, confidence: 1, isNew: false, continuity: 'confirmed' });
+      results.push({ identityId: snap.identityId, confidence: 1, isNew: false, continuity: 'confirmed', risk: { score: 0, band: 'low', flags: [] } });
       continue;
     }
 
@@ -139,6 +148,9 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
     const updatedProfile = updateSignalProfile(storedProfile, signals, snap.timestamp);
 
+    // newSnapId is set inside the transaction and read outside to run risk assessment.
+    let newSnapId: string | null = null;
+
     await db.begin(async (tx) => {
       if (isNew) {
         await tx`
@@ -159,14 +171,17 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
       const [newSnap] = await tx<{ id: string }[]>`
         INSERT INTO snapshots
-          (identity_id, project_id, event_id, timestamp, signals, signal_hash, persistence_policy, traceparent)
+          (identity_id, project_id, event_id, timestamp, signals, signal_hash,
+           persistence_policy, traceparent, client_ip)
         VALUES
           (${resolvedId}, ${projectId}, ${eventId}, ${snap.timestamp},
            ${tx.json(signals)}, ${signalHash},
            ${snap.persistencePolicy as PersistencePolicy},
-           ${snap.traceparent ?? null})
+           ${snap.traceparent ?? null},
+           ${clientIp}::inet)
         RETURNING id
       `;
+      if (newSnap) newSnapId = newSnap.id;
 
       // Drift: compute against the previous snapshot for this identity.
       if (!isNew && newSnap) {
@@ -197,7 +212,40 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       }
     });
 
-    results.push({ identityId: resolvedId, confidence: finalConfidence, isNew, continuity, ...(ambiguous ? { ambiguous: true } : {}) });
+    // Risk assessment runs outside the identity transaction so its DB writes
+    // don't block the commit, and a detector failure can't roll back the snapshot.
+    let risk = { score: 0, band: 'low', flags: [] as string[] };
+    if (newSnapId) {
+      const clusterId =
+        (
+          await db<{ cluster_id: string | null }[]>`
+            SELECT cluster_id FROM identities WHERE id = ${resolvedId} LIMIT 1
+          `
+        )[0]?.cluster_id ?? null;
+
+      const assessment = await assessRisk(db, {
+        identityId: resolvedId,
+        snapshotId: newSnapId,
+        projectId,
+        signals,
+        signalHash,
+        clusterId,
+        clientIp,
+        timestamp: snap.timestamp,
+        isNew,
+      });
+
+      risk = {
+        score: assessment.score,
+        band: assessment.band,
+        flags: assessment.flags.map((f) => f.code),
+      };
+
+      // Fire webhooks in the background — response is not gated on delivery.
+      void deliverWebhooks(db, projectId, resolvedId, newSnapId, assessment);
+    }
+
+    results.push({ identityId: resolvedId, confidence: finalConfidence, isNew, continuity, risk, ...(ambiguous ? { ambiguous: true } : {}) });
   }
 
   res.json({ results });
