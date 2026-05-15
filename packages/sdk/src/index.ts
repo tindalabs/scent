@@ -49,12 +49,13 @@ export class ScentSDK {
   // the persistence layer, and returns an observation. Confidence scoring is
   // local-only in Phase 1 — the probabilistic engine (Phase 2) will replace
   // this with server-resolved scores.
-  async observe(): Promise<ScentObservation> {
+  async observe(opts?: { extraSignals?: Record<string, string | number | boolean | null> }): Promise<ScentObservation> {
     const collectors = buildCollectors(this.options);
-    const [signals, resurrectedId] = await Promise.all([
+    const [collectedSignals, resurrectedId] = await Promise.all([
       collectAllSignals(collectors),
       this.persistence.resurrect(),
     ]);
+    const signals = opts?.extraSignals ? { ...collectedSignals, ...opts.extraSignals } : collectedSignals;
 
     const isNew = resurrectedId === null;
     const id = resurrectedId ?? generateId();
@@ -98,7 +99,7 @@ export class ScentSDK {
       ...(traceparent !== undefined ? { traceparent } : {}),
     });
 
-    // Expose raw signals on the observation for debugging and server transport
+    // Expose merged signals on the observation for debugging and server transport
     (observation as ScentObservation & { _signals: typeof signals })._signals = signals;
 
     return observation;
