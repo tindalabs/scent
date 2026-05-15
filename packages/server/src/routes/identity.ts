@@ -14,27 +14,42 @@ identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const identity = await db<{
-    id: string;
-    first_seen: Date;
-    last_seen: Date;
-    confidence_band: string;
-    risk_band: string;
-    snapshot_count: number;
-    cluster_id: string | null;
-  }[]>`
-    SELECT id, first_seen, last_seen, confidence_band, risk_band, snapshot_count, cluster_id
-    FROM identities
-    WHERE id = ${req.params['id']!} AND project_id = ${project[0].id}
-    LIMIT 1
-  `;
+  const identityId = req.params['id']!;
 
-  if (!identity[0]) {
+  const [identityRows, riskRows] = await Promise.all([
+    db<{
+      id: string;
+      first_seen: Date;
+      last_seen: Date;
+      confidence_band: string;
+      risk_band: string;
+      snapshot_count: number;
+      cluster_id: string | null;
+    }[]>`
+      SELECT id, first_seen, last_seen, confidence_band, risk_band, snapshot_count, cluster_id
+      FROM identities
+      WHERE id = ${identityId} AND project_id = ${project[0].id}
+      LIMIT 1
+    `,
+    db<{ score: number; flags: { code: string; label: string; reason: string; confidence: number }[] }[]>`
+      SELECT score, flags
+      FROM risk_assessments
+      WHERE identity_id = ${identityId}
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `,
+  ]);
+
+  if (!identityRows[0]) {
     res.status(404).json({ error: 'Identity not found' });
     return;
   }
 
-  res.json(identity[0]);
+  res.json({
+    ...identityRows[0],
+    riskScore: riskRows[0]?.score ?? null,
+    riskFlags: riskRows[0]?.flags ?? [],
+  });
 });
 
 // Ordered drift history for an identity.
