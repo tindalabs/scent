@@ -26,34 +26,72 @@ describe('weightedJaccard', () => {
       'network.type': 'wifi',
     };
     const { confidence } = weightedJaccard(SIGNALS_A, other);
+    // With tolerance=1 (default), the highest-weight mismatch (canvas.2d)
+    // is forgiven, but all other signals still mismatch → near zero.
     expect(confidence).toBeLessThan(0.1);
   });
 
   it('returns high confidence when only volatile signals differ', () => {
     const drifted = { ...SIGNALS_A, 'network.type': 'wifi' };
     const { confidence } = weightedJaccard(SIGNALS_A, drifted);
-    // network.type is volatile (weight 0.15), so swapping it barely moves confidence.
     expect(confidence).toBeGreaterThan(0.85);
   });
 
-  it('returns lower confidence when a stable signal changes', () => {
+  it('returns lower confidence when a stable signal changes (tolerance=0)', () => {
     const drifted = { ...SIGNALS_A, 'canvas.2d': 'different_hash' };
-    const { confidence, mismatchedSignals } = weightedJaccard(SIGNALS_A, drifted);
+    const { confidence, mismatchedSignals } = weightedJaccard(SIGNALS_A, drifted, {
+      toleratedMismatches: 0,
+    });
     expect(confidence).toBeLessThan(0.85);
     expect(mismatchedSignals).toContain('canvas.2d');
+  });
+
+  it('tolerates a single stable signal mismatch with default tolerance=1', () => {
+    const drifted = { ...SIGNALS_A, 'canvas.2d': 'different_hash' };
+    const { confidence, toleratedSignals, mismatchedSignals } = weightedJaccard(
+      SIGNALS_A,
+      drifted,
+    );
+    // canvas.2d is the highest-weight mismatch → forgiven by default tolerance
+    expect(toleratedSignals).toContain('canvas.2d');
+    expect(mismatchedSignals).not.toContain('canvas.2d');
+    expect(confidence).toBeCloseTo(1.0);
+  });
+
+  it('does not tolerate two stable signal mismatches with tolerance=1', () => {
+    const drifted = { ...SIGNALS_A, 'canvas.2d': 'different', 'audio.hash': 'different' };
+    const { confidence, toleratedSignals } = weightedJaccard(SIGNALS_A, drifted);
+    // Only the highest-weight mismatch is forgiven; the second still penalises.
+    expect(toleratedSignals).toHaveLength(1);
+    expect(confidence).toBeLessThan(0.95);
+  });
+
+  it('respects custom toleratedMismatches=2', () => {
+    const drifted = { ...SIGNALS_A, 'canvas.2d': 'different', 'audio.hash': 'different' };
+    const { confidence, toleratedSignals } = weightedJaccard(SIGNALS_A, drifted, {
+      toleratedMismatches: 2,
+    });
+    expect(toleratedSignals).toHaveLength(2);
+    expect(confidence).toBeCloseTo(1.0);
+  });
+
+  it('respects weightOverrides', () => {
+    const drifted = { ...SIGNALS_A, 'canvas.2d': 'different_hash' };
+    // With tolerance=0 and canvas weight lowered to 0.1, mismatch barely moves score
+    const { confidence } = weightedJaccard(SIGNALS_A, drifted, {
+      toleratedMismatches: 0,
+      weightOverrides: { 'canvas.2d': 0.1 },
+    });
+    expect(confidence).toBeGreaterThan(0.90);
   });
 
   it('tamper signals are excluded from scoring', () => {
     const withTamper = { ...SIGNALS_A, 'tamper.webdriver': true };
     const { confidence } = weightedJaccard(SIGNALS_A, withTamper);
-    // tamper signals ignored, so confidence should still be near 1.0 for the stable set
     expect(confidence).toBeCloseTo(1.0);
   });
 
-  it('accepts daysSinceLastObservation without crashing', () => {
-    // Decay is applied uniformly, so it cancels in the Jaccard ratio —
-    // the confidence value itself is invariant to the decay parameter.
-    // The parameter is a hook for future per-signal decay strategies.
+  it('accepts daysSinceLastObservation via legacy number signature', () => {
     const fresh = weightedJaccard(SIGNALS_A, { ...SIGNALS_A }, 0);
     const stale = weightedJaccard(SIGNALS_A, { ...SIGNALS_A }, 365);
     expect(fresh.confidence).toBeCloseTo(stale.confidence);

@@ -23,7 +23,7 @@ export {
 } from './simhash/index.js';
 export type { SimHash } from './simhash/index.js';
 export { weightedJaccard } from './matching/jaccard.js';
-export type { MatchResult } from './matching/jaccard.js';
+export type { MatchResult, JaccardOptions } from './matching/jaccard.js';
 export {
   scoreToConfidenceBand,
   scoreToIdentityContinuity,
