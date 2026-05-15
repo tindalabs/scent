@@ -46,7 +46,7 @@ OpenTelemetry frontend observability SDK. Reuse:
 - **Framework adapter pattern**: React hook / Vue composable wrappers over a framework-agnostic core
 - **TypeScript config**: strict tsconfig, shared ESLint rules
 
-The OTel bridge goal: Scent attaches `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@blindspot/web` span via `traceparent`. Same developer persona, composable without coupling.
+The OTel bridge goal: Scent attaches `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@tindalabs/blindspot` span via `traceparent`. Same developer persona, composable without coupling.
 
 ## Architecture decisions (locked)
 

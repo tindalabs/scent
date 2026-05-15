@@ -33,7 +33,7 @@ export interface ScentSnapshot {
   signals: SignalMap;
   signalHash: string; // SimHash of the stable-signal subset
   persistencePolicy: PersistencePolicy;
-  traceparent?: string; // W3C OTel traceparent, present when @blindspot/web is active
+  traceparent?: string; // W3C OTel traceparent, present when @tindalabs/blindspot is active
 }
 
 /**

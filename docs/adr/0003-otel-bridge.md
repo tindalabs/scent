@@ -14,11 +14,11 @@ A naive integration would couple the two SDKs directly (Scent imports blindspot-
 
 ## Decision
 
-Compose via the **W3C `traceparent` header**, which is already emitted by `@blindspot/web` and understood by any OTel-compatible system.
+Compose via the **W3C `traceparent` header**, which is already emitted by `@tindalabs/blindspot` and understood by any OTel-compatible system.
 
 The integration works as follows:
 
-1. `@blindspot/web` injects a `traceparent` into the page context as a meta tag or JS variable.
+1. `@tindalabs/blindspot` injects a `traceparent` into the page context as a meta tag or JS variable.
 2. `@tindalabs/scent-sdk` reads this value (if present) and attaches it to every snapshot payload sent to the server.
 3. The server stores `traceparent` on the snapshot record.
 4. A separate bridge package (`@tindalabs/scent-otel`) reads the current Scent observation and sets `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as attributes on the active OTel span.
@@ -31,6 +31,6 @@ This means:
 ## Consequences
 
 - `@tindalabs/scent-otel` is a Phase 5 deliverable, not part of MVP.
-- `traceparent` attachment in the snapshot payload costs zero additional bytes if `@blindspot/web` is not present (the field is simply absent).
+- `traceparent` attachment in the snapshot payload costs zero additional bytes if `@tindalabs/blindspot` is not present (the field is simply absent).
 - The bridge must be tested with both SDKs simultaneously in the demo app to verify span attribute propagation end-to-end.
 - This architecture enables the `tindalabs.dev` platform story: two independent products that compose without coupling, sharing the same observability backend.

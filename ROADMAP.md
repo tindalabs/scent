@@ -13,7 +13,7 @@
   └── Signal collection
   └── Multi-storage persistence
   └── Anti-tamper heuristics
-  └── OTel traceparent bridge    ← composes with @blindspot/web
+  └── OTel traceparent bridge    ← composes with @tindalabs/blindspot
 
 @tindalabs/scent-server       (Node.js / Docker)
   └── Event ingestion API
@@ -301,7 +301,7 @@ Observatory running at `localhost:3001` (Docker Compose). Shows live identity da
 
 ### Integration design
 
-- [x] SDK reads `traceparent` from the current page context (set by `@blindspot/web`)
+- [x] SDK reads `traceparent` from the current page context (set by `@tindalabs/blindspot`)
 - [x] Scent snapshot payload includes `traceparent` if present
 - [x] Server stores `traceparent` on the snapshot record
 - [x] `GET /v1/identity/:id/timeline` includes `traceparent` references — each drift event links to the OTel trace that triggered it
@@ -309,12 +309,12 @@ Observatory running at `localhost:3001` (Docker Compose). Shows live identity da
 
 ### blindspot-ux integration package
 
-- [x] New package: `@tindalabs/scent-otel` (or `@blindspot/scent-bridge`)
-- [x] Adds `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@blindspot/web` span
-- [x] Zero-config when both SDKs are present: auto-detects `@blindspot/web` context
+- [x] New package: `@tindalabs/scent-otel` (or `@tindalabs/scent-bridge`)
+- [x] Adds `scent.identity.id` and `scent.identity.confidence` as span attributes on every `@tindalabs/blindspot` span
+- [x] Zero-config when both SDKs are present: auto-detects `@tindalabs/blindspot` context
 
 ### Deliverable
-A single demo app running both `@blindspot/web` and `@tindalabs/scent-sdk`. The Grafana Tempo trace for a login event includes `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as span attributes.
+A single demo app running both `@tindalabs/blindspot` and `@tindalabs/scent-sdk`. The Grafana Tempo trace for a login event includes `scent.identity.id`, `scent.identity.confidence`, and `scent.risk.score` as span attributes.
 
 ---
 

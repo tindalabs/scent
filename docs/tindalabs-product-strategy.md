@@ -82,7 +82,7 @@ This is the god trace: one span that answers all three questions, automatically,
 
 ### Blindspot
 
-**Current name:** blindspot-ux / `@blindspot/web`
+**Current name:** blindspot-ux / `@tindalabs/blindspot`
 **Proposed scope:** `@tindalabs/blindspot`
 
 **Positioning under tindalabs.dev:**
@@ -94,7 +94,7 @@ Blindspot's core value — creating long-lived route spans in a browser environm
 
 **Changes needed:**
 
-1. **npm scope migration:** `@blindspot/web` → `@tindalabs/blindspot`. Publish under the new scope; keep `@blindspot/web` as a deprecated re-export for existing users. One release cycle.
+1. **npm scope migration:** `@tindalabs/blindspot` → `@tindalabs/blindspot`. Publish under the new scope; keep `@tindalabs/blindspot` as a deprecated re-export for existing users. One release cycle.
 
 2. **Shield integration:** Accept Shield's `assess()` result as optional span attributes. When Shield is present, Blindspot's route span automatically gets `shield.*` attributes without any additional wiring:
    ```typescript
@@ -251,7 +251,7 @@ Three repos, one org. No monorepo merge — each product has a distinct release 
 
 2. **+2 weeks:** Rename CST → Shield (`@tindalabs/shield`), add top-level `assess()` API, publish to npm. Launch as "the bot detection layer behind Scent's risk engine."
 
-3. **+4 weeks:** Migrate `@blindspot/web` to `@tindalabs/blindspot`. Keep old package as a deprecated re-export. One changelog note, no breaking changes.
+3. **+4 weeks:** Migrate `@tindalabs/blindspot` to `@tindalabs/blindspot`. Keep old package as a deprecated re-export. One changelog note, no breaking changes.
 
 4. **+6 weeks:** Update tindalabs.dev landing page with the three-product "stack" section. By now all three are published and stable.
 

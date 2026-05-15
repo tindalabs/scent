@@ -160,7 +160,7 @@ await bridge.flush();
 
 Span attributes set: `scent.identity.id`, `scent.identity.confidence`, `scent.identity.continuity`, `scent.risk.score`, `scent.risk.flags`.
 
-See [OTel bridge guide](docs/integrations/otel-bridge.md) for full setup including `@blindspot/web` integration.
+See [OTel bridge guide](docs/integrations/otel-bridge.md) for full setup including `@tindalabs/blindspot` integration.
 
 ---
 

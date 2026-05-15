@@ -33,13 +33,13 @@ npm install @tindalabs/scent-sdk @tindalabs/scent-otel
 
 ## Usage
 
-### With `@blindspot/web` (recommended)
+### With `@tindalabs/blindspot` (recommended)
 
-`@blindspot/web` manages a long-lived route span for the page. Because browser OTel context propagation doesn't survive async boundaries, you should use `getSessionTraceparent()` from `@blindspot/web` directly rather than relying on `readTraceparent()` from the OTel API. `getSessionTraceparent()` reads the stored route span directly, so it works regardless of where in the call stack `observe()` runs.
+`@tindalabs/blindspot` manages a long-lived route span for the page. Because browser OTel context propagation doesn't survive async boundaries, you should use `getSessionTraceparent()` from `@tindalabs/blindspot` directly rather than relying on `readTraceparent()` from the OTel API. `getSessionTraceparent()` reads the stored route span directly, so it works regardless of where in the call stack `observe()` runs.
 
 ```typescript
 import { init } from '@tindalabs/scent-sdk';
-import { getSessionTraceparent } from '@blindspot/web';  // reads the active route span
+import { getSessionTraceparent } from '@tindalabs/blindspot';  // reads the active route span
 import { ScentOtelBridge } from '@tindalabs/scent-otel';
 
 const sdk = init({
@@ -55,7 +55,7 @@ await bridge.flush();               // sends snapshot with traceparent to server
 
 `scent.identity.*` and `scent.risk.*` attributes are set on the active blindspot-ux span, so they appear on every child span (clicks, fetches, vitals) automatically — they inherit the trace context.
 
-### Without `@blindspot/web`
+### Without `@tindalabs/blindspot`
 
 When running without blindspot-ux, use `readTraceparent()` instead. This reads from `@opentelemetry/api`'s active span, which works when `observe()` is called synchronously inside a `startActiveSpan` callback.
 
@@ -83,7 +83,7 @@ If you prefer not to use the `ScentOtelBridge` wrapper:
 
 ```typescript
 import { init } from '@tindalabs/scent-sdk';
-import { getSessionTraceparent } from '@blindspot/web';
+import { getSessionTraceparent } from '@tindalabs/blindspot';
 import { attachScentAttributes } from '@tindalabs/scent-otel';
 
 const sdk = init({
@@ -107,7 +107,7 @@ attachScentAttributes(obs, trace.getActiveSpan());
 
 ```tsx
 import { init } from '@tindalabs/scent-sdk';
-import { getSessionTraceparent } from '@blindspot/web';
+import { getSessionTraceparent } from '@tindalabs/blindspot';
 import { ScentOtelBridge } from '@tindalabs/scent-otel';
 import { useEffect } from 'react';
 
@@ -148,7 +148,7 @@ The Docker Compose dev stack already includes an OTel Collector sidecar. Point `
 ```
 Browser                          Server                        Tracing backend
 ───────                          ──────                        ───────────────
-@blindspot/web creates route span
+@tindalabs/blindspot creates route span
   └─ stored as _routeSpan
        │
        ▼
