@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type IRouter } from 'express';
+import { trace } from '@opentelemetry/api';
 import { db } from '../db/client.js';
 
 export const identityRouter: IRouter = Router();
@@ -125,6 +126,12 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
       last_linked_at = now()
     RETURNING link_count
   `;
+
+  trace.getActiveSpan()?.setAttributes({
+    'scent.identity.id': identityId,
+    'scent.account.id': accountId,
+    'scent.link_count': link?.link_count ?? 1,
+  });
 
   res.json({ identityId, accountId, linkCount: link?.link_count ?? 1 });
 });

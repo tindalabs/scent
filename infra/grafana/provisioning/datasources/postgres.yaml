@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: Scent DB
+    type: postgres
+    uid: scent-postgres
+    access: proxy
+    url: postgres:5432
+    database: scent
+    user: scent
+    secureJsonData:
+      password: scent_dev
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    editable: false

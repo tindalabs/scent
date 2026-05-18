@@ -183,6 +183,75 @@
       ],
       "title": "Account Links — scent.identify() Calls",
       "type": "table"
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "id": 13, "title": "Account Intelligence", "type": "row" },
+
+    {
+      "datasource": { "type": "postgres", "uid": "scent-postgres" },
+      "description": "Accounts associated with more than one Scent identity. This is the primary free-tier abuse signal: one account reachable from many distinct devices or browser profiles. Sorted by identity count descending — the highest rows are the most suspicious.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 39 },
+      "id": 7,
+      "options": { "sortBy": [ { "displayName": "identities_linked", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "scent-postgres" },
+          "rawSql": "SELECT l.account_id, COUNT(DISTINCT l.identity_id) AS identities_linked, MIN(l.first_linked_at) AS first_seen, MAX(l.last_linked_at) AS last_seen FROM identity_account_links l WHERE l.project_id = (SELECT id FROM projects WHERE api_key = 'demo-api-key-dev' LIMIT 1) GROUP BY l.account_id ORDER BY identities_linked DESC, last_seen DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Fraud Clusters — Accounts with Multiple Identities",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "postgres", "uid": "scent-postgres" },
+      "description": "Identities associated with more than one account. This is the account-hopping signal: a single device or browser that cycles through multiple accounts. High counts combined with a low confidence_band indicate the identity drifts significantly between sessions — a strong automation or trial-abuse indicator.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 39 },
+      "id": 8,
+      "options": { "sortBy": [ { "displayName": "accounts_linked", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "scent-postgres" },
+          "rawSql": "SELECT l.identity_id, COUNT(DISTINCT l.account_id) AS accounts_linked, MIN(l.first_linked_at) AS first_seen, MAX(l.last_linked_at) AS last_seen, i.confidence_band, i.risk_band FROM identity_account_links l JOIN identities i ON i.id = l.identity_id WHERE l.project_id = (SELECT id FROM projects WHERE api_key = 'demo-api-key-dev' LIMIT 1) GROUP BY l.identity_id, i.confidence_band, i.risk_band ORDER BY accounts_linked DESC, last_seen DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Account Hoppers — Identities with Multiple Accounts",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "postgres", "uid": "scent-postgres" },
+      "description": "Full identity ↔ account link table — current database state. Each row is one (identity, account) pair that has been observed together at least once. link_count reflects how many times scent.identify() was called for that pair, distinguishing a consistent relationship from a one-off coincidence.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 49 },
+      "id": 9,
+      "options": { "sortBy": [ { "displayName": "last_linked_at", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "scent-postgres" },
+          "rawSql": "SELECT l.identity_id, l.account_id, l.link_count, l.first_linked_at, l.last_linked_at, i.confidence_band, i.risk_band FROM identity_account_links l JOIN identities i ON i.id = l.identity_id WHERE l.project_id = (SELECT id FROM projects WHERE api_key = 'demo-api-key-dev' LIMIT 1) ORDER BY l.last_linked_at DESC LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Identity ↔ Account Links — Current State",
+      "type": "table"
     }
 
   ],
