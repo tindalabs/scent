@@ -83,8 +83,9 @@ A runnable monorepo where `pnpm dev` starts the demo app and Docker stack.
 - [x] Connection type (NetworkInformation API, graceful degradation)
 - [x] Installed plugins / MIME types (where available)
 - [x] CSS media features (prefers-color-scheme, prefers-reduced-motion)
-- [ ] WebRTC local IP leak (opt-in, plugin architecture — invasive signals are modular)
-- [ ] Battery API (opt-in, highly invasive, platform-restricted)
+- [x] WebRTC local IP leak (opt-in — `options.signals.webrtc: true`) — surfaces `webrtc.local_ips` and `webrtc.public_ip` via RTCPeerConnection STUN; reveals real IP behind VPN for same-device correlation
+- [x] Private browsing / storage restriction detection — `storage.restricted` boolean; heuristic: Safari private throws on localStorage write; Chrome/Firefox use Storage Manager quota threshold
+- [ ] Battery API (opt-in, highly invasive, platform-restricted — low priority)
 
 **Anti-tamper signals (port from content-security-toolkit):**
 - [x] WebDriver / Selenium detection (navigator.webdriver, CDP artifacts)
@@ -397,6 +398,38 @@ A single demo app running both `@tindalabs/blindspot` and `@tindalabs/scent-sdk`
 | OTel bridge + blindspot-ux composability | 5 | Week 24 |
 | OSS launch (self-hosting + docs) | 6 | Week 27 |
 | First paying customer | 7 | Week 31 |
+
+---
+
+## Phase 8 — Account Linking & Entity Graph
+**Goal:** Connect anonymous Scent identities to authenticated account IDs, enabling "these 5 free trial accounts share a device" queries and closing the loop from probabilistic identity to actionable fraud detection.
+**Duration:** ~2–3 weeks
+**Owner:** Both collaborators
+
+### Why this matters
+
+Without account linking, Scent produces anonymous identity continuity signals with no connection to the application's user records. The ICP's job-to-be-done #1 is "I need to know if the person creating their 5th free trial account is the same device as the previous four" — this phase makes that answerable.
+
+### SDK
+
+- [ ] `scent.identify(accountId: string): Promise<void>` — links the current Scent identity to an application-level account ID; POST to `/v1/identity/:id/link`
+- [ ] `identify()` is a no-op if no identity has been resolved yet in this session
+
+### Server
+
+- [ ] Migration `004_account_links.sql` — `identity_account_links` table: `(id, project_id, identity_id, account_id, first_linked_at, link_count)`; unique index on `(project_id, identity_id, account_id)`
+- [ ] `POST /v1/identity/:id/link` — body: `{ accountId }` — upserts a link record; returns 200 with link count
+- [ ] `GET /v1/identity/:id/accounts` — returns all account IDs ever linked to this Scent identity, with first-linked timestamp and link count
+- [ ] `GET /v1/account/:accountId/identities` — returns all Scent identities ever linked to this account ID, with confidence and risk summary — this is the fraud-detection query
+- [ ] Risk engine integration: flag `coordinated_accounts` when N ≥ 3 distinct accounts link to the same identity within a rolling 30-day window
+
+### Observatory
+
+- [ ] Account links panel on identity detail page: shows all account IDs linked to this identity
+- [ ] "Account clusters" view: sorted table of account IDs sharing a Scent identity, with shared-device count and risk band — the primary fraud investigation surface
+
+### Deliverable
+`scent.identify(userId)` called at login. Observatory shows all accounts that share a device. Risk engine flags coordinated registrations. `GET /v1/account/:id/identities` usable for inline signup-flow risk checks.
 
 ---
 

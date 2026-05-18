@@ -266,14 +266,48 @@ Anti-tamper signals are **risk indicators**, not identity signals. They feed int
 
 ---
 
-## Deferred opt-in signals
+### Storage mode (`storage.*`)
 
-These signals are architecturally supported (the `buildCollectors()` factory checks `options.signals.*`) but not yet implemented. They require explicit opt-in because of their invasiveness.
+**Collector:** `StorageModeCollector` · **Stability:** `volatile` · **File:** `packages/sdk/src/collectors/storage-mode.ts`
+
+| Signal key | Type | Description |
+|---|---|---|
+| `storage.restricted` | `boolean` | Whether storage access is restricted, indicating private/incognito browsing. Detection: Safari private mode throws `SecurityError` on `localStorage.setItem`; Chrome/Firefox private mode reports quota below 120 MB via `navigator.storage.estimate()`. |
+
+**Browser support:** `localStorage` exception path covers all browsers. `StorageManager.estimate()` — Chrome 52+, Firefox 57+. Absent in environments without `localStorage` (e.g. some WebViews in strict mode).
+
+**Stability notes:** Volatile — changes each session depending on whether the user opens private mode. A risk indicator, not an identity signal. Feeds the risk engine's storage amnesia pattern detector. `true` combined with a fresh-looking identity profile is a stronger abuse signal than either alone.
+
+**GDPR notes:** This signal does not expose the content of the user's storage. It only detects whether storage is available.
+
+---
+
+## Opt-in signals
+
+These signals are available but require explicit opt-in via `init()` options because of their invasiveness. They are not collected unless the gate flag is set to `true`.
+
+### WebRTC IP (`webrtc.*`)
+
+**Collector:** `WebRTCCollector` · **Gate:** `options.signals.webrtc: true` · **Stability:** `volatile` · **File:** `packages/sdk/src/collectors/webrtc.ts`
+
+| Signal key | Type | Description |
+|---|---|---|
+| `webrtc.local_ips` | `string` | Comma-separated sorted list of IP addresses (IPv4 and IPv6) discovered via RTCPeerConnection STUN candidate gathering. Includes RFC-1918 private addresses, which often remain stable across VPN changes. |
+| `webrtc.public_ip` | `string` | First non-private IP found in the STUN candidate list. May reveal the real public IP behind a VPN when the user's browser does not block WebRTC IP leaks. Absent if all discovered IPs are private. |
+
+**Browser support:** All modern browsers. Some privacy-hardened configurations (Brave Shields, Firefox `media.peerconnection.enabled: false`) block STUN candidate gathering — collector returns `{}` gracefully.
+
+**Stability notes:** Local IPs are moderately stable (home router assignments are usually persistent); public IP changes with VPN. The primary fraud value is same-device correlation: two sessions sharing a `webrtc.local_ips` value despite different public IPs or cookies are very likely the same physical device.
+
+**GDPR / legal notes:** Requires **explicit consent** (`Art. 6(1)(a)`) — cannot rely on legitimate interests. Exposing a user's local network topology without consent is not proportionate under most EU DPA guidance. Gate this signal behind a consent check in your application before enabling `options.signals.webrtc: true`.
+
+---
+
+## Deferred opt-in signals
 
 | Signal group | Gate | Planned keys | Reason for opt-in |
 |---|---|---|---|
-| WebRTC local IP | `options.signals.webrtc: true` | `webrtc.local_ip`, `webrtc.public_ip` | Exposes local network topology; legally sensitive in many jurisdictions |
-| Battery API | `options.signals.battery: true` | `battery.level`, `battery.charging` | Highly invasive; removed from Firefox and Safari; deprecated in Chrome |
+| Battery API | `options.signals.battery: true` | `battery.level`, `battery.charging` | Highly invasive; removed from Firefox and Safari; deprecated in Chrome — low priority |
 
 ---
 

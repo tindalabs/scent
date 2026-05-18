@@ -18,6 +18,8 @@ export { HeadlessCollector } from './anti-tamper/headless.js';
 export { PatchedApiCollector } from './anti-tamper/patched-api.js';
 export { DevToolsCollector } from './anti-tamper/devtools.js';
 export { EntropySpoofCollector } from './anti-tamper/entropy-spoof.js';
+export { WebRTCCollector } from './webrtc.js';
+export { StorageModeCollector } from './storage-mode.js';
 
 import type { ScentInitOptions } from '@tindalabs/scent-engine';
 import type { BaseCollector } from './base.js';
@@ -35,8 +37,10 @@ import { PatchedApiCollector } from './anti-tamper/patched-api.js';
 import { PlatformCollector } from './platform.js';
 import { PluginCollector } from './plugins.js';
 import { ScreenCollector } from './screen.js';
+import { StorageModeCollector } from './storage-mode.js';
 import { TouchCollector } from './touch.js';
 import { WebDriverCollector } from './anti-tamper/webdriver.js';
+import { WebRTCCollector } from './webrtc.js';
 
 export function buildCollectors(options: ScentInitOptions): BaseCollector[] {
   const collectors: BaseCollector[] = [
@@ -51,6 +55,7 @@ export function buildCollectors(options: ScentInitOptions): BaseCollector[] {
     new NetworkCollector(),
     new PluginCollector(),
     new MediaCollector(),
+    new StorageModeCollector(),
     new WebDriverCollector(),
     new HeadlessCollector(),
     new PatchedApiCollector(),
@@ -60,10 +65,10 @@ export function buildCollectors(options: ScentInitOptions): BaseCollector[] {
 
   // Invasive signals are always opt-in — not included unless explicitly enabled
   if (options.signals?.webrtc) {
-    // WebRTCCollector — Phase 1 stretch goal, not yet implemented
+    collectors.push(new WebRTCCollector());
   }
   if (options.signals?.battery) {
-    // BatteryCollector — Phase 1 stretch goal, not yet implemented
+    // BatteryCollector — low priority, platform-restricted
   }
 
   return collectors;
