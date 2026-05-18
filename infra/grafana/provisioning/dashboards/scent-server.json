@@ -1,0 +1,186 @@
+{
+  "annotations": { "list": [] },
+  "description": "scent-server observability — HTTP request spans from the Node.js API server. Every panel queries Tempo TraceQL. Attributes: scent.identity.*, http.route, http.status_code.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 10, "title": "Identity Resolution", "type": "row" },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Every identity resolution processed by POST /v1/events. Span attributes: scent.identity.id (resolved ID), scent.identity.is_new (first-ever visit), scent.identity.confidence (0–1 calibrated score). Sorted by most recent.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "sortBy": [ { "displayName": "Start time", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.id != \"\"}",
+          "refId": "A",
+          "limit": 25
+        }
+      ],
+      "title": "Recent Identity Resolutions",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "First-ever observations — no prior identity matched. scent.identity.is_new=true means the engine had no stored snapshot to compare against. High volumes may indicate a new user cohort, cookie/storage clearance events, or automation.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 2,
+      "options": { "sortBy": [ { "displayName": "Start time", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.is_new=true}",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "title": "New Identities",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Returning visitors matched by the probabilistic engine. scent.identity.is_new=false. Sorted by confidence descending — low-confidence returning matches may indicate signal drift, VPN changes, or browser updates since the last observation.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 3,
+      "options": { "sortBy": [ { "displayName": "Start time", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.is_new=false}",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "title": "Returning Identities",
+      "type": "table"
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 11, "title": "Server Requests", "type": "row" },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "All HTTP spans from scent-server. Attributes from Node.js auto-instrumentation: http.route, http.method, http.status_code, http.target. Use this to inspect latency per route and drill into individual traces.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 20 },
+      "id": 4,
+      "options": { "sortBy": [ { "displayName": "Duration", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && span.http.method != \"\"}",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "title": "HTTP Requests — All Routes",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Spans with ERROR or UNSET status, or HTTP 4xx/5xx responses. These indicate server errors, failed identity resolutions, bad API keys, or rate-limited clients. Drill into the trace for stack traces.",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 20 },
+      "id": 5,
+      "options": { "sortBy": [ { "displayName": "Start time", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && status=error}",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "title": "Server Errors",
+      "type": "table"
+    },
+
+    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+      "id": 12, "title": "Account Linking", "type": "row" },
+
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "POST /v1/identity/:id/link — called by scent.identify(accountId) after user login. Each span represents one identity-to-account association. Use account GET /v1/account/:id/identities to find identities sharing an account (fraud cluster detection).",
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "nested" },
+            "properties": [ { "id": "custom.hidden", "value": true } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "id": 6,
+      "options": { "sortBy": [ { "displayName": "Start time", "desc": true } ] },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"scent-server\" && span.http.route=~\".*/link\"}",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "title": "Account Links — scent.identify() Calls",
+      "type": "table"
+    }
+
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["scent", "identity", "opentelemetry"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Scent Server — Overview",
+  "uid": "scent-server-overview",
+  "version": 0
+}
