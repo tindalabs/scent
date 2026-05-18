@@ -36,7 +36,7 @@
         }
       ],
       "title": "Recent Identity Resolutions",
-      "type": "table"
+      "type": "traces"
     },
 
     {
@@ -64,7 +64,7 @@
         }
       ],
       "title": "New Identities",
-      "type": "table"
+      "type": "traces"
     },
 
     {
@@ -92,7 +92,7 @@
         }
       ],
       "title": "Returning Identities",
-      "type": "table"
+      "type": "traces"
     },
 
     { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
@@ -123,7 +123,7 @@
         }
       ],
       "title": "HTTP Requests — All Routes",
-      "type": "table"
+      "type": "traces"
     },
 
     {
@@ -151,7 +151,7 @@
         }
       ],
       "title": "Server Errors",
-      "type": "table"
+      "type": "traces"
     },
 
     { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
@@ -182,7 +182,7 @@
         }
       ],
       "title": "Account Links — scent.identify() Calls",
-      "type": "table"
+      "type": "traces"
     }
 
   ],
