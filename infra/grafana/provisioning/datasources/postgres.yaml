@@ -6,11 +6,11 @@ datasources:
     uid: scent-postgres
     access: proxy
     url: postgres:5432
-    database: scent
     user: scent
     secureJsonData:
       password: scent_dev
     jsonData:
+      database: scent
       sslmode: disable
       postgresVersion: 1600
       timescaledb: false
