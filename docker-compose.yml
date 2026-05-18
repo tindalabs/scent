@@ -78,6 +78,7 @@ services:
       - tempo-data:/var/tempo
     ports:
       - "3200:3200"
+      - "9095:9095"   # Tempo gRPC — Grafana 13 traces panel uses this
 
   grafana:
     image: grafana/grafana:latest
