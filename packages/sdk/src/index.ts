@@ -31,6 +31,7 @@ export class ScentSDK {
   private readonly persistence: PersistenceManager;
   private readonly emitter: ScentEventEmitter;
   private readonly buffer: Array<Record<string, unknown>> = [];
+  private currentIdentityId: string | null = null;
 
   constructor(options: ScentInitOptions) {
     this.options = options;
@@ -59,6 +60,7 @@ export class ScentSDK {
 
     const isNew = resurrectedId === null;
     const id = resurrectedId ?? generateId();
+    this.currentIdentityId = id;
 
     if (isNew) {
       await this.persistence.persist(id);
@@ -122,6 +124,23 @@ export class ScentSDK {
         'X-Api-Key': this.options.apiKey,
       },
       body: JSON.stringify({ snapshots: payload }),
+    });
+  }
+
+  // Links the current Scent identity to an application-level account ID (e.g. a
+  // user's primary key after login or signup). This is what enables "how many
+  // accounts share this device?" queries via GET /v1/account/:id/identities.
+  // No-op if observe() has not been called yet in this session.
+  async identify(accountId: string): Promise<void> {
+    if (!this.currentIdentityId) return;
+    const endpoint = this.options.endpoint ?? 'https://api.tindalabs.dev/v1';
+    await fetch(`${endpoint}/identity/${this.currentIdentityId}/link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': this.options.apiKey,
+      },
+      body: JSON.stringify({ accountId }),
     });
   }
 

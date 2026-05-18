@@ -11,6 +11,7 @@ import { identitiesRouter } from './routes/identities.js';
 import { resolveRouter } from './routes/resolve.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { clustersRouter } from './routes/clusters.js';
+import { accountRouter } from './routes/account.js';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:4000',  // Observatory (docker-compose)
@@ -43,6 +44,7 @@ app.use('/v1/identities', identitiesRouter);
 app.use('/v1/resolve', resolveRouter);
 app.use('/v1/dashboard', dashboardRouter);
 app.use('/v1/clusters', clustersRouter);
+app.use('/v1/account', accountRouter);
 
 const port = process.env['PORT'] ?? 3000;
 
