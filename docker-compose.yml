@@ -39,7 +39,12 @@ services:
       PORT: "3000"
       OTEL_SERVICE_NAME: scent-server
       OTEL_SERVICE_VERSION: "0.0.1"
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      # Send to the infra-stack OTel collector (tindalabs-dev) so scent-server
+      # spans land in the same Tempo instance as browser traces — enabling
+      # end-to-end trace correlation from navigation span → POST /v1/events → identity resolution.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3004:3000"
     depends_on:

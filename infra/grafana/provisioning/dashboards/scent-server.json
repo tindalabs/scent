@@ -20,7 +20,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 1 },
@@ -48,7 +50,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
@@ -76,7 +80,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
@@ -107,7 +113,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 9, "w": 14, "x": 0, "y": 20 },
@@ -135,7 +143,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 9, "w": 10, "x": 14, "y": 20 },
@@ -166,7 +176,9 @@
           { "matcher": { "id": "byName", "options": "nested" },
             "properties": [ { "id": "custom.hidden", "value": true } ] },
           { "matcher": { "id": "byName", "options": "traceID" },
-            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] },
+          { "matcher": { "id": "byName", "options": "Name" },
+            "properties": [ { "id": "links", "value": [ { "title": "Open trace", "url": "/explore?schemaVersion=1&panes={\"r1\":{\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"query\":\"${__data.fields.traceID}\",\"queryType\":\"traceql\"}],\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}}&orgId=1" } ] } ] }
         ]
       },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
