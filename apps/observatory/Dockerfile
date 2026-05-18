@@ -2,9 +2,9 @@ FROM node:22-alpine AS builder
 RUN corepack enable
 WORKDIR /app
 
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/observatory/package.json apps/observatory/
-RUN pnpm install --frozen-lockfile --filter @irregular/scent-observatory
+RUN pnpm install --frozen-lockfile --filter @tindalabs/scent-observatory
 
 COPY apps/observatory apps/observatory
 
@@ -15,7 +15,7 @@ ARG VITE_API_KEY=demo-api-key-dev
 ENV VITE_API_BASE=$VITE_API_BASE
 ENV VITE_API_KEY=$VITE_API_KEY
 
-RUN pnpm --filter @irregular/scent-observatory build
+RUN pnpm --filter @tindalabs/scent-observatory build
 
 FROM nginx:alpine
 COPY --from=builder /app/apps/observatory/dist /usr/share/nginx/html

@@ -41,7 +41,7 @@ services:
       OTEL_SERVICE_VERSION: "0.0.1"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     ports:
-      - "3000:3000"
+      - "3004:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,7 +53,7 @@ services:
       context: .
       dockerfile: apps/observatory/Dockerfile
       args:
-        VITE_API_BASE: http://localhost:3000
+        VITE_API_BASE: http://localhost:3004
         VITE_API_KEY: demo-api-key-dev
     ports:
       - "4000:80"
