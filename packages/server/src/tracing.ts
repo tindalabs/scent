@@ -9,6 +9,9 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 export function startTracing(): void {
   if (process.env['OTEL_SDK_DISABLED'] === 'true') return;
 
+  // Ensure a predictable service name in local dev — env var still wins when set (e.g. docker-compose).
+  process.env['OTEL_SERVICE_NAME'] ??= 'scent-server';
+
   const endpoint =
     process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://localhost:4318';
 

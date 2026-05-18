@@ -19,6 +19,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5174',  // Vite dev (alternate port)
   'http://localhost:4173',  // Vite preview
   'http://localhost:4174',  // Vite preview (alternate port)
+  'http://localhost:3002',  // tindalabs-dev Next.js (falls back from 3000)
+  'http://localhost:3003',  // tindalabs-dev alternate
 ];
 
 const app = express();
