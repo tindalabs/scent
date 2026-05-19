@@ -444,3 +444,49 @@ These are not in any phase above. Revisit after first paying customer.
 - Browser exploit tricks / CNAME cloaking / DNS rebinding
 - Email / phone intelligence signals
 - Real-time streaming API (webhooks cover the MVP use case)
+
+---
+
+## Advisory Backlog — 2026-05-19
+
+Findings from a full C-level assessment (CTO / CPO / COO / CMO / CFO + competitive research).
+Overall score: **6.0/10** — the code and product thinking deserve an 8; the distribution and launch execution score a 2.
+Full report: `c-level/reports/scent_2026-05-19.md`
+
+### Immediate (this week)
+
+- [x] Add `LICENSE` file (MIT) to repo root — blocks every enterprise procurement tool and npm publish
+- [x] Add `pnpm build` step to `.github/workflows/ci.yml` — a broken TypeScript compilation currently passes CI
+- [x] Pin `otel/opentelemetry-collector-contrib`, `grafana/tempo`, `grafana/grafana` to specific versions in `docker-compose.yml` (postgres/redis are already pinned; be consistent)
+- [x] Add `SECURITY.md` with maintainer contact and 90-day responsible disclosure policy
+- [x] Add `.github/dependabot.yml` for monthly npm dependency updates
+- [x] Add `pnpm audit --audit-level=high` to CI pipeline
+
+### Next Sprint (1–4 weeks)
+
+- [ ] Implement Phase 8: `scent.identify(accountId)` + `POST /v1/identity/:id/link` + Observatory account clusters view — this is job-to-be-done #1 for the primary ICP
+- [ ] Add compound PostgreSQL index on `snapshots(project_id, identity_id, timestamp DESC)` and benchmark candidate scan at 100k identities — the O(n) scan in `routes/events.ts:95–107` is the primary scaling blocker
+- [ ] Cache project API key lookups in Redis (same pattern as rate limiter) — eliminates per-request DB round-trip on every `/v1/*` route
+- [ ] Add test coverage for `routes/events.ts` (identity resolution, deduplication, cluster linking), `sdk/persistence/*`, and `sdk/collectors/*` — target 60%+ on probabilistic core
+- [ ] Add `pino` structured JSON logging to Express server — replace `console.log`/`console.error`; incidents are not debuggable without queryable logs
+- [ ] Add `CHANGELOG.md` and tag `0.1.0`
+- [ ] Add `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md`
+- [ ] Add `# DO NOT USE IN PRODUCTION without configuring CORS` comment to `infra/otel-collector.yaml` if applicable
+
+### Strategic (1–3 months)
+
+- [ ] **Simultaneous launch**: make GitHub repo public + publish npm packages (`@tindalabs/scent-sdk`, `@tindalabs/scent-engine`) + Show HN post on the same day — these three actions must happen together to maximize momentum
+- [ ] Launch `tindalabs.dev` landing page — `docs/tindalabs-landing-page-spec.md` has all the copy; HN traffic needs somewhere to land
+- [ ] Write and publish "Why FingerprintJS free tier isn't enough — and what we built instead" blog post on Dev.to and Medium (the migration guide is already written; this is the SEO play)
+- [ ] Implement usage metering (`resolution_count` increment per project per billing period) — the revenue meter; unblocks Phase 7 Stripe integration
+- [ ] Implement Phase 7 SaaS: Stripe usage-based billing, API key management UI, billing dashboard
+- [ ] Publish accuracy benchmarks comparing Scent vs. FingerprintJS OSS vs. ThumbmarkJS — trust signal in a high-scrutiny category
+- [ ] Publish `tindalabs/scent-server` Docker image to Docker Hub so self-hosters can `docker pull` without building from source
+- [ ] Reach out to 10–15 mid-market SaaS founders/CTOs who post publicly about fraud on Twitter/LinkedIn (primary community seeding)
+
+### Watch List
+
+- **O(n) candidate scan at scale** — set a Grafana alert on `scent.identity_resolution` span duration > 500ms; if a project reaches 50k identities before the indexing fix, resolution latency will degrade under load
+- **FingerprintJS Pro pricing changes** — Fingerprint.com is under competitive pressure from ThumbmarkJS and browser anti-fingerprinting; monitor their pricing page for moves below $50/month
+- **ITP/Chrome Privacy Sandbox velocity** — Apple ITP and Chrome Privacy Sandbox updates degrade individual signal stability; monitor `drift.classification: 'suspicious'` rate spike after major Safari/Chrome releases as a health signal
+- **2-person bus factor** — the probabilistic core is complex; growing community with CONTRIBUTING + `good-first-issue` tags is the mitigation

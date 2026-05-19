@@ -66,7 +66,7 @@ services:
       - scent-server
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.107.0
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
       - ./infra/otel-collector.yaml:/etc/otel-collector.yaml
@@ -76,7 +76,7 @@ services:
       - tempo
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.5.0
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./infra/tempo.yaml:/etc/tempo.yaml
@@ -86,7 +86,7 @@ services:
       - "9095:9095"   # Tempo gRPC — Grafana 13 traces panel uses this
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.2.0
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
