@@ -1,6 +1,8 @@
 import { Router, type Request, type Response, type IRouter } from 'express';
-import { trace } from '@opentelemetry/api';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { db } from '../db/client.js';
+
+const tracer = trace.getTracer('scent-server');
 
 export const identityRouter: IRouter = Router();
 
@@ -124,23 +126,32 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
     return;
   }
 
-  const [link] = await db<{ link_count: number }[]>`
-    INSERT INTO identity_account_links (project_id, identity_id, account_id)
-    VALUES (${project[0].id}, ${identityId}, ${accountId})
-    ON CONFLICT (project_id, identity_id, account_id)
-    DO UPDATE SET
-      link_count     = identity_account_links.link_count + 1,
-      last_linked_at = now()
-    RETURNING link_count
-  `;
+  const span = tracer.startSpan('scent.identity_link');
+  let linkCount = 1;
+  try {
+    const [link] = await db<{ link_count: number }[]>`
+      INSERT INTO identity_account_links (project_id, identity_id, account_id)
+      VALUES (${project[0].id}, ${identityId}, ${accountId})
+      ON CONFLICT (project_id, identity_id, account_id)
+      DO UPDATE SET
+        link_count     = identity_account_links.link_count + 1,
+        last_linked_at = now()
+      RETURNING link_count
+    `;
+    linkCount = link?.link_count ?? 1;
+    span.setAttributes({
+      'scent.identity.id': identityId,
+      'scent.account.id': accountId,
+      'scent.link_count': linkCount,
+    });
+  } catch (err) {
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    span.end();
+    throw err;
+  }
+  span.end();
 
-  trace.getActiveSpan()?.setAttributes({
-    'scent.identity.id': identityId,
-    'scent.account.id': accountId,
-    'scent.link_count': link?.link_count ?? 1,
-  });
-
-  res.json({ identityId, accountId, linkCount: link?.link_count ?? 1 });
+  res.json({ identityId, accountId, linkCount });
 });
 
 // All account IDs ever linked to this Scent identity.

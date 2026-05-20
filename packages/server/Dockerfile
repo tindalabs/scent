@@ -31,4 +31,4 @@ ENV NODE_ENV=production
 WORKDIR /app/packages/server
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "--import", "./dist/tracing.js", "dist/index.js"]

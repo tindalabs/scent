@@ -32,7 +32,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.id != \"\"}",
+          "query": "{resource.service.name=~\"scent-server.*\" && span.scent.identity.id != \"\"}",
           "refId": "A",
           "limit": 25
         }
@@ -62,7 +62,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.is_new=true}",
+          "query": "{resource.service.name=~\"scent-server.*\" && span.scent.identity.is_new=true}",
           "refId": "A",
           "limit": 50
         }
@@ -92,7 +92,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && span.scent.identity.is_new=false}",
+          "query": "{resource.service.name=~\"scent-server.*\" && span.scent.identity.is_new=false}",
           "refId": "A",
           "limit": 50
         }
@@ -125,7 +125,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && span.http.method != \"\"}",
+          "query": "{resource.service.name=~\"scent-server.*\" && span.http.method != \"\"}",
           "refId": "A",
           "limit": 50
         }
@@ -155,7 +155,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && status=error}",
+          "query": "{resource.service.name=~\"scent-server.*\" && status=error}",
           "refId": "A",
           "limit": 50
         }
@@ -188,7 +188,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"scent-server\" && span.http.route=~\".*/link\"}",
+          "query": "{resource.service.name=~\"scent-server.*\" && name=\"scent.identity_link\"}",
           "refId": "A",
           "limit": 50
         }
