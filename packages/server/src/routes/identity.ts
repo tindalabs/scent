@@ -48,7 +48,7 @@ identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
 
   res.json({
     ...identityRows[0],
-    riskScore: riskRows[0]?.score ?? null,
+    riskScore: riskRows[0]?.score != null ? Number(riskRows[0].score) : null,
     riskFlags: riskRows[0]?.flags ?? [],
   });
 });
@@ -87,7 +87,9 @@ identityRouter.get('/:id/timeline', async (req: Request, res: Response): Promise
     ORDER BY d.timestamp ASC
   `;
 
-  res.json({ drifts });
+  res.json({
+    drifts: drifts.map(d => ({ ...d, entropy: Number(d.entropy) })),
+  });
 });
 
 // Link the identity to an application-level account ID.

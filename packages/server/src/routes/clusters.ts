@@ -47,5 +47,11 @@ clustersRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  res.json({ cluster: clusterRows[0], members });
+  res.json({
+    cluster: clusterRows[0],
+    members: members.map(m => ({
+      ...m,
+      merge_confidence: m.merge_confidence != null ? Number(m.merge_confidence) : null,
+    })),
+  });
 });
