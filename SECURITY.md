@@ -10,7 +10,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email: iker.laforga@grupogestionet.com
+Email: ikerlaforga@gmail.com
 
 Include:
 - Description of the vulnerability
