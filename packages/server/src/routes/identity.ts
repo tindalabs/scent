@@ -49,7 +49,12 @@ identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
   res.json({
     ...identityRows[0],
     riskScore: riskRows[0]?.score != null ? Number(riskRows[0].score) : null,
-    riskFlags: riskRows[0]?.flags ?? [],
+    riskFlags: (() => {
+      const f = riskRows[0]?.flags;
+      if (!f) return [];
+      if (typeof f === 'string') return JSON.parse(f);
+      return f;
+    })(),
   });
 });
 
