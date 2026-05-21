@@ -8,14 +8,7 @@ export const identityRouter: IRouter = Router();
 
 // Full identity record: confidence, risk, last snapshot summary.
 identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const identityId = req.params['id']!;
 
@@ -31,7 +24,7 @@ identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
     }[]>`
       SELECT id, first_seen, last_seen, confidence_band, risk_band, snapshot_count, cluster_id
       FROM identities
-      WHERE id = ${identityId} AND project_id = ${project[0].id}
+      WHERE id = ${identityId} AND project_id = ${projectId}
       LIMIT 1
     `,
     db<{ score: number; flags: { code: string; label: string; reason: string; confidence: number }[] }[]>`
@@ -62,14 +55,7 @@ identityRouter.get('/:id', async (req: Request, res: Response): Promise<void> =>
 
 // Ordered drift history for an identity.
 identityRouter.get('/:id/timeline', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const drifts = await db<{
     id: string;
@@ -90,7 +76,7 @@ identityRouter.get('/:id/timeline', async (req: Request, res: Response): Promise
     FROM drifts d
     JOIN identities i ON i.id = d.identity_id
     JOIN snapshots s ON s.id = d.after_snapshot_id
-    WHERE d.identity_id = ${req.params['id']!} AND i.project_id = ${project[0].id}
+    WHERE d.identity_id = ${req.params['id']!} AND i.project_id = ${projectId}
     ORDER BY d.timestamp ASC
   `;
 
@@ -102,14 +88,7 @@ identityRouter.get('/:id/timeline', async (req: Request, res: Response): Promise
 // Link the identity to an application-level account ID.
 // Upserts the link record, incrementing link_count on repeated calls.
 identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const identityId = req.params['id']!;
   const { accountId } = req.body as { accountId?: string };
@@ -119,7 +98,7 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
   }
 
   const identity = await db<{ id: string }[]>`
-    SELECT id FROM identities WHERE id = ${identityId} AND project_id = ${project[0].id} LIMIT 1
+    SELECT id FROM identities WHERE id = ${identityId} AND project_id = ${projectId} LIMIT 1
   `;
   if (!identity[0]) {
     res.status(404).json({ error: 'Identity not found' });
@@ -131,7 +110,7 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
   try {
     const [link] = await db<{ link_count: number }[]>`
       INSERT INTO identity_account_links (project_id, identity_id, account_id)
-      VALUES (${project[0].id}, ${identityId}, ${accountId})
+      VALUES (${projectId}, ${identityId}, ${accountId})
       ON CONFLICT (project_id, identity_id, account_id)
       DO UPDATE SET
         link_count     = identity_account_links.link_count + 1,
@@ -156,14 +135,7 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
 
 // All account IDs ever linked to this Scent identity.
 identityRouter.get('/:id/accounts', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const links = await db<{
     account_id: string;
@@ -173,7 +145,7 @@ identityRouter.get('/:id/accounts', async (req: Request, res: Response): Promise
   }[]>`
     SELECT account_id, first_linked_at, last_linked_at, link_count
     FROM identity_account_links
-    WHERE project_id = ${project[0].id} AND identity_id = ${req.params['id']!}
+    WHERE project_id = ${projectId} AND identity_id = ${req.params['id']!}
     ORDER BY first_linked_at ASC
   `;
 
@@ -182,20 +154,13 @@ identityRouter.get('/:id/accounts', async (req: Request, res: Response): Promise
 
 // Current signal profile with per-signal explainability metadata.
 identityRouter.get('/:id/signals', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const snap = await db<{ signals: Record<string, unknown>; timestamp: Date }[]>`
     SELECT s.signals, s.timestamp
     FROM snapshots s
     JOIN identities i ON i.id = s.identity_id
-    WHERE s.identity_id = ${req.params['id']!} AND i.project_id = ${project[0].id}
+    WHERE s.identity_id = ${req.params['id']!} AND i.project_id = ${projectId}
     ORDER BY s.timestamp DESC
     LIMIT 1
   `;

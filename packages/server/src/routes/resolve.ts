@@ -35,15 +35,7 @@ resolveRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
-  const projectId = project[0].id;
+  const projectId = req.projectId;
 
   const signals = parsed.data.signals as SignalMap;
   const simHash = computeSimHash(signals);

@@ -8,14 +8,7 @@ export const accountRouter: IRouter = Router();
 // identities (devices) have been associated with this account?" and,
 // conversely, "what other accounts have been seen on the same device?"
 accountRouter.get('/:accountId/identities', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
+  const projectId = req.projectId;
 
   const rows = await db<{
     identity_id: string;
@@ -36,7 +29,7 @@ accountRouter.get('/:accountId/identities', async (req: Request, res: Response):
       i.snapshot_count
     FROM identity_account_links l
     JOIN identities i ON i.id = l.identity_id
-    WHERE l.project_id = ${project[0].id}
+    WHERE l.project_id = ${projectId}
       AND l.account_id = ${req.params['accountId']!}
     ORDER BY l.first_linked_at ASC
   `;

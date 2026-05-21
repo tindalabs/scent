@@ -10,15 +10,7 @@ const SORT_COLS = {
 } as const;
 
 identitiesRouter.get('/', async (req: Request, res: Response): Promise<void> => {
-  const apiKey = req.headers['x-api-key'] as string;
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
-  `;
-  if (!project[0]) {
-    res.status(401).json({ error: 'Unknown API key' });
-    return;
-  }
-  const projectId = project[0].id;
+  const projectId = req.projectId;
 
   const page = Math.max(1, parseInt((req.query['page'] as string) ?? '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query['limit'] as string) ?? '50', 10)));
