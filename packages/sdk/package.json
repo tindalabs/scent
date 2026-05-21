@@ -1,6 +1,32 @@
 {
   "name": "@tindalabs/scent-sdk",
   "version": "0.0.1",
+  "description": "Scent client SDK — browser fingerprinting, persistent identity tracking, and account linking for fraud prevention, bot detection, and behavioral analytics.",
+  "keywords": [
+    "fingerprinting",
+    "identity",
+    "fraud-detection",
+    "bot-detection",
+    "behavioral-analytics",
+    "device-fingerprint",
+    "session-tracking",
+    "account-linking",
+    "risk-scoring",
+    "observability",
+    "react",
+    "vue"
+  ],
+  "license": "MIT",
+  "author": "Isonimus",
+  "homepage": "https://github.com/tindalabs/scent#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tindalabs/scent.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/tindalabs/scent/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +44,7 @@
       "types": "./dist/adapters/vue.d.ts"
     }
   },
+  "files": ["dist"],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

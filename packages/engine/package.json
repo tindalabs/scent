@@ -1,6 +1,31 @@
 {
   "name": "@tindalabs/scent-engine",
   "version": "0.0.1",
+  "description": "Scent core engine — signal collection, identity clustering, drift detection, confidence scoring, and risk assessment. Framework-agnostic and platform-independent.",
+  "keywords": [
+    "fingerprinting",
+    "identity-resolution",
+    "drift-detection",
+    "behavioral-analytics",
+    "fraud-detection",
+    "bot-detection",
+    "device-fingerprint",
+    "risk-scoring",
+    "clustering",
+    "confidence-scoring",
+    "observability"
+  ],
+  "license": "MIT",
+  "author": "Isonimus",
+  "homepage": "https://github.com/tindalabs/scent#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tindalabs/scent.git",
+    "directory": "packages/engine"
+  },
+  "bugs": {
+    "url": "https://github.com/tindalabs/scent/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +35,7 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": ["dist"],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
