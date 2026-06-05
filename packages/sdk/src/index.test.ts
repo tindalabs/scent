@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ScentSDK, init } from './index.js';
 
 beforeEach(() => {
@@ -59,5 +59,48 @@ describe('ScentSDK', () => {
     await sdk.observe();
     expect(fired).toBe(true);
     unsub();
+  });
+});
+
+describe('ScentSDK.identify', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('no-ops when observe() has not run (no resolved identity)', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const sdk = init({ apiKey: 'test' });
+    await sdk.identify('account-123');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('POSTs the account link to /identity/:id/link for the resolved identity', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchSpy);
+    const sdk = init({ apiKey: 'secret-key', endpoint: 'https://api.example.test/v1' });
+    const obs = await sdk.observe();
+
+    await sdk.identify('account-123');
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`https://api.example.test/v1/identity/${obs.identity.id}/link`);
+    expect(options.method).toBe('POST');
+    expect((options.headers as Record<string, string>)['X-Api-Key']).toBe('secret-key');
+    expect(JSON.parse(options.body as string)).toEqual({ accountId: 'account-123' });
+  });
+
+  it('sends no account ID in the URL — only in the request body (no PII leak to path)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchSpy);
+    const sdk = init({ apiKey: 'test', endpoint: 'https://api.example.test/v1' });
+    await sdk.observe();
+
+    await sdk.identify('user@example.com');
+
+    const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).not.toContain('user@example.com');
+    expect(url).toContain('/link');
   });
 });

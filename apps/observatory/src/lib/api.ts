@@ -61,6 +61,37 @@ export interface ClusterMember {
   merge_reason: string | null;
 }
 
+// An application account ID linked to one Scent identity.
+export interface AccountLink {
+  account_id: string;
+  first_linked_at: string;
+  last_linked_at: string;
+  link_count: number;
+}
+
+// A Scent identity linked to one application account (reverse lookup).
+export interface LinkedIdentity {
+  identity_id: string;
+  first_linked_at: string;
+  last_linked_at: string;
+  link_count: number;
+  confidence_band: string;
+  risk_band: string;
+  snapshot_count: number;
+}
+
+// One identity (device) shared across multiple accounts — a fraud cluster.
+export interface AccountCluster {
+  identity_id: string;
+  account_count: number;
+  total_links: number;
+  first_linked_at: string;
+  last_linked_at: string;
+  risk_band: 'low' | 'medium' | 'high' | 'critical';
+  confidence_band: string;
+  account_ids: string[];
+}
+
 export interface DashboardData {
   totalIdentities: number;
   newToday: number;
@@ -106,4 +137,18 @@ export function fetchSignals(id: string): Promise<{ signals: Record<string, unkn
 
 export function fetchCluster(id: string): Promise<{ cluster: Cluster; members: ClusterMember[] }> {
   return get(`/v1/clusters/${encodeURIComponent(id)}`);
+}
+
+export function fetchAccountLinks(id: string): Promise<{ identityId: string; accounts: AccountLink[] }> {
+  return get(`/v1/identity/${encodeURIComponent(id)}/accounts`);
+}
+
+export function fetchIdentitiesForAccount(
+  accountId: string,
+): Promise<{ accountId: string; identities: LinkedIdentity[] }> {
+  return get(`/v1/account/${encodeURIComponent(accountId)}/identities`);
+}
+
+export function fetchAccountClusters(min = 2): Promise<{ minAccounts: number; clusters: AccountCluster[] }> {
+  return get(`/v1/accounts/clusters?min=${min}`);
 }

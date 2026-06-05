@@ -412,21 +412,21 @@ Without account linking, Scent produces anonymous identity continuity signals wi
 
 ### SDK
 
-- [ ] `scent.identify(accountId: string): Promise<void>` — links the current Scent identity to an application-level account ID; POST to `/v1/identity/:id/link`
-- [ ] `identify()` is a no-op if no identity has been resolved yet in this session
+- [x] `scent.identify(accountId: string): Promise<void>` — links the current Scent identity to an application-level account ID; POST to `/v1/identity/:id/link`
+- [x] `identify()` is a no-op if no identity has been resolved yet in this session
 
 ### Server
 
-- [ ] Migration `004_account_links.sql` — `identity_account_links` table: `(id, project_id, identity_id, account_id, first_linked_at, link_count)`; unique index on `(project_id, identity_id, account_id)`
-- [ ] `POST /v1/identity/:id/link` — body: `{ accountId }` — upserts a link record; returns 200 with link count
-- [ ] `GET /v1/identity/:id/accounts` — returns all account IDs ever linked to this Scent identity, with first-linked timestamp and link count
-- [ ] `GET /v1/account/:accountId/identities` — returns all Scent identities ever linked to this account ID, with confidence and risk summary — this is the fraud-detection query
-- [ ] Risk engine integration: flag `coordinated_accounts` when N ≥ 3 distinct accounts link to the same identity within a rolling 30-day window
+- [x] Migration `004_account_links.sql` — `identity_account_links` table: `(id, project_id, identity_id, account_id, first_linked_at, link_count)`; unique index on `(project_id, identity_id, account_id)`
+- [x] `POST /v1/identity/:id/link` — body: `{ accountId }` — upserts a link record; returns 200 with link count
+- [x] `GET /v1/identity/:id/accounts` — returns all account IDs ever linked to this Scent identity, with first-linked timestamp and link count
+- [x] `GET /v1/account/:accountId/identities` — returns all Scent identities ever linked to this account ID, with confidence and risk summary — this is the fraud-detection query
+- [x] Risk engine integration: flag `coordinated_accounts` when N ≥ 3 distinct accounts link to the same identity within a rolling 30-day window
 
 ### Observatory
 
-- [ ] Account links panel on identity detail page: shows all account IDs linked to this identity
-- [ ] "Account clusters" view: sorted table of account IDs sharing a Scent identity, with shared-device count and risk band — the primary fraud investigation surface
+- [x] Account links panel on identity detail page: shows all account IDs linked to this identity
+- [x] "Account clusters" view: sorted table of account IDs sharing a Scent identity, with shared-device count and risk band — the primary fraud investigation surface
 
 ### Deliverable
 `scent.identify(userId)` called at login. Observatory shows all accounts that share a device. Risk engine flags coordinated registrations. `GET /v1/account/:id/identities` usable for inline signup-flow risk checks.
@@ -464,7 +464,7 @@ Full report: `c-level/reports/scent_2026-05-19.md`
 
 ### Next Sprint (1–4 weeks)
 
-- [ ] Implement Phase 8: `scent.identify(accountId)` + `POST /v1/identity/:id/link` + Observatory account clusters view — this is job-to-be-done #1 for the primary ICP
+- [x] Implement Phase 8: `scent.identify(accountId)` + `POST /v1/identity/:id/link` + Observatory account clusters view — this is job-to-be-done #1 for the primary ICP
 - [ ] Add compound PostgreSQL index on `snapshots(project_id, identity_id, timestamp DESC)` and benchmark candidate scan at 100k identities — the O(n) scan in `routes/events.ts:95–107` is the primary scaling blocker
 - [ ] Cache project API key lookups in Redis (same pattern as rate limiter) — eliminates per-request DB round-trip on every `/v1/*` route
 - [ ] Add test coverage for `routes/events.ts` (identity resolution, deduplication, cluster linking), `sdk/persistence/*`, and `sdk/collectors/*` — target 60%+ on probabilistic core

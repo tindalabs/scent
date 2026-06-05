@@ -13,6 +13,7 @@ import { resolveRouter } from './routes/resolve.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { clustersRouter } from './routes/clusters.js';
 import { accountRouter } from './routes/account.js';
+import { accountsRouter } from './routes/accounts.js';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:4000',  // Observatory (docker-compose)
@@ -40,7 +41,7 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', phase: 4 });
+  res.json({ status: 'ok', phase: 8 });
 });
 
 // All /v1/* routes require a valid X-Api-Key and are rate-limited per key.
@@ -53,6 +54,7 @@ app.use('/v1/resolve', resolveRouter);
 app.use('/v1/dashboard', dashboardRouter);
 app.use('/v1/clusters', clustersRouter);
 app.use('/v1/account', accountRouter);
+app.use('/v1/accounts', accountsRouter);
 
 const port = process.env['PORT'] ?? 3000;
 
