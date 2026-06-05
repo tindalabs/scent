@@ -1,6 +1,38 @@
+# Dependabot — keeps the toolchain fresh without flooding the queue.
+# Monthly cadence suits a project at this maturity; non-major bumps are grouped
+# into a single PR per cycle, while majors come through individually so they get
+# a proper review. `directory: /` covers the whole pnpm workspace via the root
+# lockfile. https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
-      interval: monthly
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    # One PR per cycle for all minor/patch bumps across the workspace.
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+
+  # Keeps GitHub Actions pinned versions current (e.g. checkout/setup-node),
+  # which also clears the Node-20-runtime deprecation warnings over time.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"

@@ -1,0 +1,48 @@
+name: CodeQL
+
+# GitHub's CodeQL SAST analysis. For an identity/fingerprinting SDK that ships
+# into other people's browsers and handles linkage between anonymous identities
+# and real account IDs, "we run SAST" is table stakes for downstream due
+# diligence. Free on public repos; findings appear in the Security tab.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly Monday 06:00 UTC — catches new CodeQL rule releases without
+    # waiting for the next PR.
+    - cron: '0 6 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # security-and-quality is the broadest pack; the extra coverage is
+          # worth the extra noise for a project this size.
+          queries: security-and-quality
+
+      # JS/TS needs no build — CodeQL analyzes the source directly.
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
