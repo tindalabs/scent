@@ -1,5 +1,10 @@
 # Scent
 
+[![npm version](https://img.shields.io/npm/v/@tindalabs/scent-sdk.svg)](https://www.npmjs.com/package/@tindalabs/scent-sdk)
+[![CI](https://github.com/tindalabs/scent/actions/workflows/ci.yml/badge.svg)](https://github.com/tindalabs/scent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![types](https://img.shields.io/npm/types/@tindalabs/scent-sdk.svg)](https://www.npmjs.com/package/@tindalabs/scent-sdk)
+
 **Probabilistic identity continuity for hostile browser environments.**
 
 Scent tracks whether a returning visitor is "likely the same entity" even after cookie deletion, VPN changes, browser updates, or anti-fingerprinting tools — using a drift-tolerant confidence scoring engine, not deterministic hashes.
