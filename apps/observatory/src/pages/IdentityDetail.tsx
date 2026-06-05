@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Clock, GitBranch } from 'lucide-react';
-import { fetchIdentity, fetchSignals, fetchTimeline } from '../lib/api.js';
+import { ArrowLeft, Clock, GitBranch, Link2 } from 'lucide-react';
+import { fetchIdentity, fetchSignals, fetchTimeline, fetchAccountLinks } from '../lib/api.js';
 import { Badge } from '../components/ui/badge.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.js';
 import { Skeleton } from '../components/ui/skeleton.js';
@@ -53,6 +53,11 @@ export function IdentityDetail(): React.ReactElement {
     queryFn: () => fetchTimeline(identityId),
   });
 
+  const { data: accountData } = useQuery({
+    queryKey: ['accounts', identityId],
+    queryFn: () => fetchAccountLinks(identityId),
+  });
+
   if (loadingId) {
     return (
       <div className="space-y-4">
@@ -74,6 +79,8 @@ export function IdentityDetail(): React.ReactElement {
 
   const drifts = timelineData?.drifts ?? [];
   const lastDrift = drifts[drifts.length - 1];
+
+  const accounts = accountData?.accounts ?? [];
 
   return (
     <div className="space-y-5">
@@ -181,6 +188,54 @@ export function IdentityDetail(): React.ReactElement {
           </CardContent>
         </Card>
       </div>
+
+      {/* Linked accounts — populated by scent.identify(accountId) calls */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Link2 size={14} /> Linked accounts
+            </CardTitle>
+            {accounts.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {accounts.length} account{accounts.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className={accounts.length === 0 ? undefined : 'p-0'}>
+          {accounts.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No application accounts linked yet. Call{' '}
+              <code className="font-mono text-foreground">scent.identify(accountId)</code> after login to
+              associate this device with an account.
+            </p>
+          ) : (
+            <div className="overflow-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Account</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Links</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">First linked</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Last linked</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((a) => (
+                    <tr key={a.account_id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-4 py-2 font-mono text-foreground break-all">{a.account_id}</td>
+                      <td className="px-4 py-2 text-right text-muted-foreground">{a.link_count}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{formatDate(a.first_linked_at)}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{formatDate(a.last_linked_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Signal profile table */}
       <Card>

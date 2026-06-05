@@ -7,6 +7,7 @@ import { detectStorageAmnesia } from './detectors/storage-amnesia.js';
 import { detectRapidReregistration } from './detectors/rapid-reregistration.js';
 import { detectImpossibleTransition } from './detectors/impossible-transition.js';
 import { detectCoordinatedBehavior } from './detectors/coordinated-behavior.js';
+import { detectCoordinatedAccounts } from './detectors/coordinated-accounts.js';
 
 const tracer = trace.getTracer('scent-server');
 
@@ -46,6 +47,7 @@ export async function assessRisk(sql: Sql, ctx: AssessContext): Promise<RiskAsse
         detectRapidReregistration(sql, ctx.projectId, ctx.signalHash, ctx.identityId),
         detectImpossibleTransition(sql, ctx.identityId, ctx.clientIp, ctx.timestamp),
         detectCoordinatedBehavior(sql, ctx.projectId, ctx.identityId, ctx.signalHash, ctx.clusterId),
+        detectCoordinatedAccounts(sql, ctx.projectId, ctx.identityId),
       ]);
 
       const flags = detectorResults.filter((r): r is RiskFlag => r !== null);

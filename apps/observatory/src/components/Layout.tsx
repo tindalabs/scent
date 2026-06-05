@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, GitBranch } from 'lucide-react';
+import { LayoutDashboard, Users, GitBranch, Network } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/identities', label: 'Identities', icon: Users, end: false },
+  { to: '/accounts', label: 'Account clusters', icon: Network, end: false },
 ];
 
 export function Layout(): React.ReactElement {
@@ -38,7 +39,7 @@ export function Layout(): React.ReactElement {
         </nav>
         <div className="px-5 py-3 border-t border-border">
           <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <GitBranch size={11} /> Phase 4
+            <GitBranch size={11} /> Phase 8
           </span>
         </div>
       </aside>
