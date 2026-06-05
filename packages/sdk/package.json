@@ -1,6 +1,6 @@
 {
   "name": "@tindalabs/scent-sdk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Scent client SDK — browser fingerprinting, persistent identity tracking, and account linking for fraud prevention, bot detection, and behavioral analytics.",
   "keywords": [
     "fingerprinting",
@@ -44,7 +44,9 @@
       "types": "./dist/adapters/vue.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -60,8 +62,12 @@
     "vue": ">=3"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "vue": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0",

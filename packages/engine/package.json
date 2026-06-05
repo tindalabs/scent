@@ -1,6 +1,6 @@
 {
   "name": "@tindalabs/scent-engine",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Scent core engine — signal collection, identity clustering, drift detection, confidence scoring, and risk assessment. Framework-agnostic and platform-independent.",
   "keywords": [
     "fingerprinting",
@@ -35,7 +35,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
