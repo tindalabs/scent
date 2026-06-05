@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { CanvasCollector } from './canvas.js';
 import { AudioCollector } from './audio.js';
 import { FontCollector } from './fonts.js';
