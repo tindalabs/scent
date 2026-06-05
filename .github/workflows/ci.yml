@@ -9,6 +9,38 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    # Service containers for the server integration tests. The test suite skips its
+    # DB-backed cases when DATABASE_URL is unset (so local `pnpm test` needs no DB),
+    # and runs them here against these containers.
+    env:
+      DATABASE_URL: postgres://scent:scent_dev@localhost:5432/scent
+      REDIS_URL: redis://localhost:6379
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scent
+          POSTGRES_PASSWORD: scent_dev
+          POSTGRES_DB: scent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
