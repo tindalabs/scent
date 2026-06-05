@@ -32,6 +32,10 @@ export function startTracing(): void {
 
   process.on('SIGTERM', () => {
     sdk.shutdown().catch((err: unknown) => {
+      // Intentionally console, not the pino logger: this module loads before the
+      // SDK starts (so instrumentation can patch other modules), and importing the
+      // logger here would load pino too early to be instrumented. This is the one
+      // sanctioned console.* in the server — a shutdown-path error on stderr.
       console.error('[tracing] shutdown error:', err);
     });
   });

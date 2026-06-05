@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 import type { RiskAssessment } from './assess.js';
+import { logger } from '../logger.js';
 
 // Fire-and-forget webhook delivery. Called after risk assessment when the score
 // exceeds the project's configured threshold. Failures are logged but not retried
@@ -36,7 +37,7 @@ export async function deliverWebhooks(
         body: payload,
         signal: AbortSignal.timeout(5000),
       }).catch((err: unknown) => {
-        console.error(`[webhook] delivery failed for ${url}:`, err);
+        logger.error({ err, url }, 'webhook delivery failed');
       }),
     ),
   );
