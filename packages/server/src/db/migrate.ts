@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from './client.js';
+import { logger } from '../logger.js';
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 
@@ -31,6 +32,6 @@ export async function migrate(): Promise<void> {
       await tx.unsafe(sql);
       await tx`INSERT INTO _migrations (filename) VALUES (${file})`;
     });
-    console.log(`[migrate] applied ${file}`);
+    logger.info({ file }, 'migration applied');
   }
 }

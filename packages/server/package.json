@@ -12,16 +12,17 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@tindalabs/scent-engine": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.41.1",
+    "@tindalabs/scent-engine": "workspace:*",
     "cors": "^2.8.6",
     "express": "^4.18.0",
     "ioredis": "^5.10.1",
+    "pino": "^9",
     "postgres": "^3.4.9",
     "zod": "^3.23.0"
   },
