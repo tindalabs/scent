@@ -97,3 +97,52 @@ describe('weightedJaccard', () => {
     expect(fresh.confidence).toBeCloseTo(stale.confidence);
   });
 });
+
+describe('weightedJaccard — edge cases', () => {
+  it('returns 0 confidence for two empty signal maps', () => {
+    expect(weightedJaccard({}, {}).confidence).toBe(0);
+  });
+
+  it('returns 0 confidence when one side is empty', () => {
+    expect(weightedJaccard(SIGNALS_A, {}).confidence).toBe(0);
+    expect(weightedJaccard({}, SIGNALS_A).confidence).toBe(0);
+  });
+
+  it('treats null/undefined values as absent, not as a matching value', () => {
+    const withNull = { ...SIGNALS_A, 'canvas.2d': null };
+    const { matchedSignals, absentSignals } = weightedJaccard(SIGNALS_A, withNull, {
+      toleratedMismatches: 0,
+    });
+    expect(matchedSignals).not.toContain('canvas.2d'); // present-vs-null is not a match
+    expect(absentSignals).toContain('canvas.2d');
+  });
+
+  it('penalises a stable signal present on only one side (dilutes the union)', () => {
+    const stored = { ...SIGNALS_A };
+    const incoming = { ...SIGNALS_A, 'canvas.webgl': 'extra-stable-only-here' };
+    const { confidence, absentSignals } = weightedJaccard(incoming, stored, {
+      toleratedMismatches: 0,
+    });
+    expect(absentSignals).toContain('canvas.webgl');
+    expect(confidence).toBeLessThan(1);
+  });
+
+  it('reports every identical key in matchedSignals', () => {
+    const { matchedSignals } = weightedJaccard(SIGNALS_A, { ...SIGNALS_A });
+    expect(matchedSignals).toEqual(expect.arrayContaining(Object.keys(SIGNALS_A)));
+  });
+
+  it('a single moderate-signal change dents confidence less than a stable one', () => {
+    const moderateChanged = { ...SIGNALS_A, 'screen.width': 640 };
+    const stableChanged = { ...SIGNALS_A, 'canvas.2d': 'different' };
+    const mod = weightedJaccard(SIGNALS_A, moderateChanged, { toleratedMismatches: 0 });
+    const stb = weightedJaccard(SIGNALS_A, stableChanged, { toleratedMismatches: 0 });
+    expect(mod.mismatchedSignals).toContain('screen.width');
+    expect(mod.confidence).toBeGreaterThan(stb.confidence); // moderate weight < stable weight
+    expect(mod.confidence).toBeLessThan(1);
+  });
+
+  it('never exceeds 1.0', () => {
+    expect(weightedJaccard(SIGNALS_A, { ...SIGNALS_A }).confidence).toBeLessThanOrEqual(1);
+  });
+});

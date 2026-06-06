@@ -57,3 +57,50 @@ describe('diffSnapshots', () => {
     expect(result.changedSignals).not.toContain('tamper.webdriver');
   });
 });
+
+describe('diffSnapshots — classification edge cases', () => {
+  // A signal set rich in moderate-weight signals (screen/locale/platform/plugins),
+  // so we can exercise the "moderate" branch without touching stable signals.
+  const M = {
+    'canvas.2d': 'stable',
+    'screen.width': 1920,
+    'locale.timezone': 'Europe/Madrid',
+    'platform.os': 'Linux',
+    'plugins.list': 'pdf',
+    'network.type': '4g',
+  };
+
+  it('classifies 3+ moderate (non-stable) changes as "moderate"', () => {
+    const after = { ...M, 'screen.width': 800, 'locale.timezone': 'Asia/Tokyo', 'platform.os': 'Windows' };
+    const r = diffSnapshots(M, after);
+    expect(r.changedSignals).toEqual(
+      expect.arrayContaining(['screen.width', 'locale.timezone', 'platform.os']),
+    );
+    expect(r.classification).toBe('moderate');
+  });
+
+  it('fewer than 3 moderate changes falls back to "minor"', () => {
+    const after = { ...M, 'screen.width': 800, 'locale.timezone': 'Asia/Tokyo' };
+    expect(diffSnapshots(M, after).classification).toBe('minor');
+  });
+
+  it('a removed stable signal is not a stable *change*: classified "minor" but entropy > 0', () => {
+    const after = { ...M };
+    delete (after as Record<string, unknown>)['canvas.2d'];
+    const r = diffSnapshots(M, after);
+    expect(r.removedSignals).toContain('canvas.2d');
+    expect(r.changedSignals).not.toContain('canvas.2d');
+    expect(r.classification).toBe('minor'); // only `changed` drives the stable-change rule
+    expect(r.entropy).toBeGreaterThan(0);    // ...but a removed stable signal still adds entropy
+  });
+
+  it('entropy rises with the weighted magnitude of change and is capped at 1', () => {
+    const fewModerate = diffSnapshots(M, { ...M, 'screen.width': 800 });
+    const manyStable = diffSnapshots(
+      { 'canvas.2d': 'a', 'audio.hash': 'b', 'fonts.list': 'c', 'hardware.concurrency': 8 },
+      { 'canvas.2d': 'x', 'audio.hash': 'y', 'fonts.list': 'z', 'hardware.concurrency': 1 },
+    );
+    expect(manyStable.entropy).toBeGreaterThan(fewModerate.entropy);
+    expect(manyStable.entropy).toBeLessThanOrEqual(1);
+  });
+});
