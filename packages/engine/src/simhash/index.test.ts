@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeSimHash, hammingDistance, simHashToHex, hexToSimHash } from './index.js';
+import { SIMHASH_CANDIDATE_THRESHOLD } from '../matching/confidence.js';
 
 const BASE_SIGNALS = {
   'canvas.2d': 'abc123',
@@ -61,5 +62,32 @@ describe('simHashToHex / hexToSimHash', () => {
     const hex = simHashToHex(h);
     expect(hex).toHaveLength(16);
     expect(hexToSimHash(hex)).toEqual(h);
+  });
+});
+
+describe('SimHash candidate pre-filter — edge cases', () => {
+  // The candidate pre-filter in routes/events.ts keeps any stored identity whose
+  // SimHash is within SIMHASH_CANDIDATE_THRESHOLD Hamming bits of the incoming one.
+  // These characterize the distances that gate it.
+  const WITH_VOLATILE = { ...BASE_SIGNALS, 'network.type': '4g' };
+
+  it('returns the zero hash for an empty signal map', () => {
+    expect(computeSimHash({})).toEqual([0, 0]);
+  });
+
+  it('keeps a volatile-only change within the candidate threshold (drift is tolerated)', () => {
+    const drifted = { ...WITH_VOLATILE, 'network.type': 'wifi' };
+    const dist = hammingDistance(computeSimHash(WITH_VOLATILE), computeSimHash(drifted));
+    expect(dist).toBeLessThanOrEqual(SIMHASH_CANDIDATE_THRESHOLD);
+  });
+
+  it('a small change is much closer than a fully disjoint signal set', () => {
+    const base = computeSimHash(BASE_SIGNALS);
+    const small = computeSimHash({ ...BASE_SIGNALS, 'screen.width': 1366 });
+    const disjoint = computeSimHash({
+      'canvas.2d': 'qqq', 'audio.hash': 'rrr', 'fonts.list': 'Comic Sans',
+      'hardware.concurrency': 2, 'screen.width': 320, 'locale.timezone': 'Asia/Tokyo',
+    });
+    expect(hammingDistance(base, small)).toBeLessThan(hammingDistance(base, disjoint));
   });
 });
