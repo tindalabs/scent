@@ -1,0 +1,17 @@
+{
+  "name": "@tindalabs/scent-bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible accuracy benchmark: Scent's probabilistic matching vs deterministic fingerprint hashing (FingerprintJS / ThumbmarkJS style) under identity drift.",
+  "scripts": {
+    "bench": "tsx src/run.ts"
+  },
+  "dependencies": {
+    "@tindalabs/scent-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.22.4"
+  }
+}
