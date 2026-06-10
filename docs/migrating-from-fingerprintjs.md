@@ -10,6 +10,8 @@ Scent produces a **probabilistic confidence score**: a 0–1 float representing 
 
 Scent is not a drop-in replacement — it is a different model. The migration involves rethinking how you use the identity signal in your application logic.
 
+For a quantified, reproducible comparison of how the two models hold up under real-world drift (browser updates, VPNs, anti-fingerprinting, new hardware), see the [accuracy benchmark](../bench/RESULTS.md) — under drift, deterministic re-identification recall is FingerprintJS 45% / ThumbmarkJS 55% / Scent 100%.
+
 ## Mapping concepts
 
 | FingerprintJS | Scent | Notes |

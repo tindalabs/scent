@@ -38,6 +38,8 @@ FingerprintJS computes a hash. One signal changes → different hash → differe
 | Self-hostable | No | Yes |
 | Open source | No | Yes |
 
+**Don't take our word for it.** A reproducible benchmark ([`bench/`](bench/), `pnpm bench`) holds signal collection constant and varies only the matching algorithm: under realistic drift, deterministic re-identification recall is **FingerprintJS 45% / ThumbmarkJS 55% / Scent 100%** — and it reports Scent's confidence gradient and false-merge rate too, not just the headline. See [`bench/RESULTS.md`](bench/RESULTS.md).
+
 ---
 
 ## How it works
