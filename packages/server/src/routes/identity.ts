@@ -106,7 +106,6 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
   }
 
   const span = tracer.startSpan('scent.identity_link');
-  let linkCount = 1;
   try {
     const [link] = await db<{ link_count: number }[]>`
       INSERT INTO identity_account_links (project_id, identity_id, account_id)
@@ -117,20 +116,19 @@ identityRouter.post('/:id/link', async (req: Request, res: Response): Promise<vo
         last_linked_at = now()
       RETURNING link_count
     `;
-    linkCount = link?.link_count ?? 1;
+    const linkCount = link?.link_count ?? 1;
     span.setAttributes({
       'scent.identity.id': identityId,
       'scent.account.id': accountId,
       'scent.link_count': linkCount,
     });
+    span.end();
+    res.json({ identityId, accountId, linkCount });
   } catch (err) {
     span.setStatus({ code: SpanStatusCode.ERROR });
     span.end();
     throw err;
   }
-  span.end();
-
-  res.json({ identityId, accountId, linkCount });
 });
 
 // All account IDs ever linked to this Scent identity.
