@@ -20,6 +20,8 @@ export {
   hammingDistance,
   simHashToHex,
   hexToSimHash,
+  simHashToInt64,
+  int64ToSimHash,
 } from './simhash/index.js';
 export type { SimHash } from './simhash/index.js';
 export { weightedJaccard } from './matching/jaccard.js';

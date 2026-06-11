@@ -6,8 +6,7 @@ import { db } from '../db/client.js';
 import {
   computeSimHash,
   simHashToHex,
-  hexToSimHash,
-  hammingDistance,
+  simHashToInt64,
   weightedJaccard,
   scoreToConfidenceBand,
   scoreToIdentityContinuity,
@@ -77,34 +76,37 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     const signals = snap.signals as SignalMap;
     const simHash = computeSimHash(signals);
     const signalHash = simHashToHex(simHash);
+    const simHashInt = simHashToInt64(simHash);
 
-    // Fetch the most-recent snapshot per identity in this project for candidate matching.
+    // Candidate retrieval: pre-filter in the database on the denormalized
+    // latest_signal_hash, returning only identities whose SimHash is within the
+    // Hamming threshold (bit_count of the XOR). The full signals/profile of just
+    // those survivors are pulled via LATERAL — we no longer marshal every
+    // identity's signals into the server. Same recall as the old JS pre-filter.
     const candidates = await db<{
       identity_id: string;
-      signal_hash: string;
       timestamp: Date;
       signals: SignalMap;
       signal_profile: SignalProfile;
     }[]>`
-      SELECT DISTINCT ON (s.identity_id)
-        s.identity_id,
-        s.signal_hash,
-        s.timestamp,
-        s.signals,
-        i.signal_profile
-      FROM snapshots s
-      JOIN identities i ON i.id = s.identity_id
-      WHERE s.project_id = ${projectId}
-      ORDER BY s.identity_id, s.timestamp DESC
+      SELECT i.id AS identity_id, latest.timestamp, latest.signals, i.signal_profile
+      FROM identities i
+      JOIN LATERAL (
+        SELECT signals, timestamp
+        FROM snapshots
+        WHERE identity_id = i.id
+        ORDER BY timestamp DESC
+        LIMIT 1
+      ) latest ON true
+      WHERE i.project_id = ${projectId}
+        AND i.latest_signal_hash IS NOT NULL
+        AND bit_count((i.latest_signal_hash # ${simHashInt.toString()}::bigint)::bit(64)) <= ${SIMHASH_CANDIDATE_THRESHOLD}
     `;
 
-    // Score every candidate that passes the SimHash Hamming pre-filter.
+    // Score every candidate that survived the DB pre-filter.
     const scored: Array<{ identityId: string; confidence: number }> = [];
 
     for (const candidate of candidates) {
-      const candidateHash = hexToSimHash(candidate.signal_hash);
-      if (hammingDistance(simHash, candidateHash) > SIMHASH_CANDIDATE_THRESHOLD) continue;
-
       const daysSince =
         (new Date(snap.timestamp).getTime() - new Date(candidate.timestamp).getTime()) /
         (1000 * 60 * 60 * 24);
@@ -155,8 +157,8 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     await db.begin(async (tx) => {
       if (isNew) {
         await tx`
-          INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile)
-          VALUES (${resolvedId}, ${projectId}, ${confidenceBand}, 'low', ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)})
+          INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile, latest_signal_hash)
+          VALUES (${resolvedId}, ${projectId}, ${confidenceBand}, 'low', ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)}, ${simHashInt.toString()}::bigint)
           ON CONFLICT (id) DO NOTHING
         `;
       } else {
@@ -165,7 +167,8 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
           SET last_seen = now(),
               snapshot_count = snapshot_count + 1,
               confidence_band = ${confidenceBand},
-              signal_profile = ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)}
+              signal_profile = ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)},
+              latest_signal_hash = ${simHashInt.toString()}::bigint
           WHERE id = ${resolvedId}
         `;
       }

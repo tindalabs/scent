@@ -80,3 +80,22 @@ export function hexToSimHash(hex: string): SimHash {
   const lo = parseInt(hex.slice(8, 16), 16);
   return [hi >>> 0, lo >>> 0] as const;
 }
+
+// Pack a SimHash into a signed 64-bit integer for storage in a PostgreSQL
+// BIGINT column. The [hi, lo] halves form an unsigned 64-bit value which we
+// wrap into two's-complement signed range so the DB can index it and run
+// `bit_count(a # b)` Hamming pre-filtering in-engine. Bit pattern is preserved,
+// so Hamming distance is identical whether computed over the signed or unsigned
+// interpretation.
+export function simHashToInt64(h: SimHash): bigint {
+  const unsigned = (BigInt(h[0] >>> 0) << 32n) | BigInt(h[1] >>> 0);
+  return BigInt.asIntN(64, unsigned);
+}
+
+// Inverse of simHashToInt64: recover the [hi, lo] SimHash from a signed BIGINT.
+export function int64ToSimHash(value: bigint): SimHash {
+  const unsigned = BigInt.asUintN(64, value);
+  const hi = Number(unsigned >> 32n) >>> 0;
+  const lo = Number(unsigned & 0xffffffffn) >>> 0;
+  return [hi, lo] as const;
+}

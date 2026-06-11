@@ -4,8 +4,7 @@ import { db } from '../db/client.js';
 import {
   computeSimHash,
   simHashToHex,
-  hexToSimHash,
-  hammingDistance,
+  simHashToInt64,
   weightedJaccard,
   scoreToConfidenceBand,
   scoreToIdentityContinuity,
@@ -39,25 +38,30 @@ resolveRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
   const signals = parsed.data.signals as SignalMap;
   const simHash = computeSimHash(signals);
+  const simHashInt = simHashToInt64(simHash);
 
-  const candidates = await db<{ identity_id: string; signal_hash: string; timestamp: Date; signals: SignalMap }[]>`
-    SELECT DISTINCT ON (s.identity_id)
-      s.identity_id,
-      s.signal_hash,
-      s.timestamp,
-      s.signals
-    FROM snapshots s
-    WHERE s.project_id = ${projectId}
-    ORDER BY s.identity_id, s.timestamp DESC
+  // Same DB-side SimHash blocking pre-filter as POST /v1/events: only identities
+  // within the Hamming threshold are returned, with their latest snapshot's
+  // signals pulled via LATERAL for scoring.
+  const candidates = await db<{ identity_id: string; timestamp: Date; signals: SignalMap }[]>`
+    SELECT i.id AS identity_id, latest.timestamp, latest.signals
+    FROM identities i
+    JOIN LATERAL (
+      SELECT signals, timestamp
+      FROM snapshots
+      WHERE identity_id = i.id
+      ORDER BY timestamp DESC
+      LIMIT 1
+    ) latest ON true
+    WHERE i.project_id = ${projectId}
+      AND i.latest_signal_hash IS NOT NULL
+      AND bit_count((i.latest_signal_hash # ${simHashInt.toString()}::bigint)::bit(64)) <= ${SIMHASH_CANDIDATE_THRESHOLD}
   `;
 
   let bestIdentityId: string | null = null;
   let bestConfidence = 0;
 
   for (const candidate of candidates) {
-    const candidateHash = hexToSimHash(candidate.signal_hash);
-    if (hammingDistance(simHash, candidateHash) > SIMHASH_CANDIDATE_THRESHOLD) continue;
-
     const daysSince =
       (Date.now() - new Date(candidate.timestamp).getTime()) / (1000 * 60 * 60 * 24);
     const { confidence } = weightedJaccard(signals, candidate.signals, daysSince);

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { computeSimHash, simHashToHex, weightedJaccard } from '@tindalabs/scent-engine';
+import { computeSimHash, simHashToHex, simHashToInt64, weightedJaccard } from '@tindalabs/scent-engine';
 import { createApp } from '../app.js';
 import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
@@ -63,10 +63,13 @@ function post(signals: Record<string, unknown>) {
 // itself is covered by the engine SimHash tests).
 async function seedIdentity(signals: Record<string, unknown>, hashSignals: Record<string, unknown>): Promise<string> {
   const id = crypto.randomUUID();
-  const signalHash = simHashToHex(computeSimHash(hashSignals));
+  const hash = computeSimHash(hashSignals);
+  const signalHash = simHashToHex(hash);
+  // Mirror production: the denormalized latest_signal_hash on the identity is
+  // what the candidate pre-filter reads, so seed it from the same hashSignals.
   await db`
-    INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile)
-    VALUES (${id}, ${projectId}, 'high', 'low', ${db.json({})})
+    INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile, latest_signal_hash)
+    VALUES (${id}, ${projectId}, 'high', 'low', ${db.json({})}, ${simHashToInt64(hash).toString()}::bigint)
   `;
   await db`
     INSERT INTO snapshots (identity_id, project_id, event_id, timestamp, signals, signal_hash, persistence_policy)

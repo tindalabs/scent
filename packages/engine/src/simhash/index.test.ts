@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { computeSimHash, hammingDistance, simHashToHex, hexToSimHash } from './index.js';
+import {
+  computeSimHash,
+  hammingDistance,
+  simHashToHex,
+  hexToSimHash,
+  simHashToInt64,
+  int64ToSimHash,
+} from './index.js';
 import { SIMHASH_CANDIDATE_THRESHOLD } from '../matching/confidence.js';
 
 const BASE_SIGNALS = {
@@ -62,6 +69,40 @@ describe('simHashToHex / hexToSimHash', () => {
     const hex = simHashToHex(h);
     expect(hex).toHaveLength(16);
     expect(hexToSimHash(hex)).toEqual(h);
+  });
+});
+
+describe('simHashToInt64 / int64ToSimHash', () => {
+  // The signed BIGINT packing is what gets stored in identities.latest_signal_hash
+  // and pre-filtered in Postgres via bit_count((a # b)::bit(64)). These invariants
+  // guarantee the DB pre-filter and the JS Hamming distance agree, and that the
+  // migration backfill (('x'||hex)::bit(64)::bigint) lands on the same value.
+  it('round-trips through a signed 64-bit integer', () => {
+    const h = computeSimHash(BASE_SIGNALS);
+    expect(int64ToSimHash(simHashToInt64(h))).toEqual(h);
+  });
+
+  it('packs into the signed 64-bit range (may be negative when bit 63 is set)', () => {
+    const h = computeSimHash(BASE_SIGNALS);
+    const v = simHashToInt64(h);
+    expect(v).toBeGreaterThanOrEqual(-(2n ** 63n));
+    expect(v).toBeLessThanOrEqual(2n ** 63n - 1n);
+  });
+
+  it('matches the hex packing: int64 equals the big-endian hi<<32|lo of the hex', () => {
+    const h = computeSimHash(BASE_SIGNALS);
+    const hex = simHashToHex(h);
+    const expected = BigInt.asIntN(64, BigInt('0x' + hex));
+    expect(simHashToInt64(h)).toBe(expected);
+  });
+
+  it('popcount of the int64 XOR equals the JS Hamming distance', () => {
+    const a = computeSimHash(BASE_SIGNALS);
+    const b = computeSimHash({ ...BASE_SIGNALS, 'canvas.2d': 'changed', 'screen.width': 1366 });
+    const xor = BigInt.asUintN(64, simHashToInt64(a) ^ simHashToInt64(b));
+    let popcount = 0;
+    for (let bit = 0n; bit < 64n; bit++) if ((xor >> bit) & 1n) popcount++;
+    expect(popcount).toBe(hammingDistance(a, b));
   });
 });
 
