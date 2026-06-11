@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import { computeSimHash, simHashToHex, simHashToInt64, weightedJaccard } from '@tindalabs/scent-engine';
-import { createApp } from '../app.js';
 import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
+import { resolveSnapshot } from '../pipeline/resolve.js';
 
-// Integration coverage for the *resolution decisions* in routes/events.ts —
-// new-vs-returning boundary, ambiguous match, and cluster linking — that the
-// happy-path suite doesn't reach. Gated on DATABASE_URL like the other
-// integration suite (CI provides it; skips locally without a DB).
+// Integration coverage for the *resolution decisions* — new-vs-returning boundary,
+// ambiguous match, and cluster linking — that the happy-path suite doesn't reach.
+// Since async ingest moved this logic out of the HTTP route and into the background
+// worker, these drive resolveSnapshot() directly (deterministic, no queue/worker in
+// the loop). Gated on DATABASE_URL like the other integration suite (CI provides it;
+// skips locally without a DB).
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const API_KEY = 'integration-resolution-key';
 
@@ -39,21 +40,20 @@ const DISJOINT = {
   'locale.timezone': 'Pacific/Auckland', 'platform.os': 'iOS', 'plugins.list': 'none',
 } as const;
 
-const app = createApp();
 let projectId: string;
 
-function post(signals: Record<string, unknown>) {
-  return request(app)
-    .post('/v1/events')
-    .set('X-Api-Key', API_KEY)
-    .send({
-      snapshots: [{
-        identityId: crypto.randomUUID(),
-        signals,
-        persistencePolicy: 'balanced',
-        timestamp: new Date().toISOString(),
-      }],
-    });
+// Resolve a snapshot through the extracted pipeline, exactly as the worker does.
+function resolve(signals: Record<string, unknown>) {
+  return resolveSnapshot(db, {
+    projectId,
+    snap: {
+      identityId: crypto.randomUUID(),
+      signals: signals as Record<string, string | number | boolean | null>,
+      persistencePolicy: 'balanced',
+      timestamp: new Date().toISOString(),
+    },
+    clientIp: null,
+  });
 }
 
 // Seed a stored identity + one snapshot directly. `hashSignals` controls the
@@ -105,16 +105,11 @@ describe.skipIf(!hasDb)('resolution decision: new-vs-returning boundary', () => 
   beforeAll(clearIdentities);
 
   it('resolves a fully dissimilar device as a NEW identity even when others exist', async () => {
-    await post(C); // an unrelated identity already exists in the project
+    await resolve(C); // an unrelated identity already exists in the project
     expect(weightedJaccard(DISJOINT, C).confidence).toBeLessThan(0.35); // precondition
 
-    const sent = crypto.randomUUID();
-    const res = await request(app).post('/v1/events').set('X-Api-Key', API_KEY).send({
-      snapshots: [{ identityId: sent, signals: DISJOINT, persistencePolicy: 'balanced', timestamp: new Date().toISOString() }],
-    });
-    expect(res.status).toBe(200);
-    expect(res.body.results[0].isNew).toBe(true);
-    expect(res.body.results[0].identityId).toBe(sent); // a new identity, not matched to the existing one
+    const r = await resolve(DISJOINT);
+    expect(r.isNew).toBe(true); // a new identity, not matched to the existing one
   });
 });
 
@@ -129,10 +124,9 @@ describe.skipIf(!hasDb)('resolution decision: ambiguous match', () => {
     expect(second).toBeGreaterThanOrEqual(0.6);
     expect(second).toBeLessThan(0.9);
 
-    const res = await post(C);
-    expect(res.status).toBe(200);
-    expect(res.body.results[0].isNew).toBe(false);
-    expect(res.body.results[0].ambiguous).toBe(true);
+    const r = await resolve(C);
+    expect(r.isNew).toBe(false);
+    expect(r.ambiguous).toBe(true);
   });
 });
 
@@ -144,7 +138,7 @@ describe.skipIf(!hasDb)('resolution decision: cluster linking', () => {
     const b = await seedIdentity(C_CLUSTER, C);  // ~1.0 after the single-stable-mismatch tolerance
     expect(weightedJaccard(C, C_CLUSTER).confidence).toBeGreaterThanOrEqual(0.9); // precondition
 
-    await post(C);
+    await resolve(C);
 
     const rows = await db<{ id: string; cluster_id: string | null }[]>`
       SELECT id, cluster_id FROM identities WHERE id IN (${a}, ${b})

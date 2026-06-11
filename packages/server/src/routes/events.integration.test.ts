@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { Worker } from 'bullmq';
 import { createApp } from '../app.js';
 import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
+import { resolveSnapshot } from '../pipeline/resolve.js';
+import { createQueueConnection, INGEST_QUEUE_NAME } from '../queue/ingest.js';
+import type { IngestJobData } from '../queue/ingest.js';
 
 // Integration tests hit a real Postgres + Redis. They run in CI (which provides
 // DATABASE_URL/REDIS_URL via service containers) and locally when those env vars
@@ -44,8 +48,28 @@ const app = createApp();
 const base = Date.now();
 const ts = (offsetMs: number): string => new Date(base + offsetMs).toISOString();
 
+let projectId: string;
+
+// Build the { snapshots: [...] } HTTP envelope (still used by the auth/validation
+// and end-to-end tests that exercise the real route).
 function snapshot(id: string, timestamp: string, signals: Record<string, unknown> = SIGNALS) {
   return { snapshots: [{ identityId: id, signals, persistencePolicy: 'balanced', timestamp }] };
+}
+
+// Resolve a snapshot through the extracted pipeline, exactly as the worker does.
+// Async ingest moved resolution out of the HTTP response, so the resolution
+// assertions call resolveSnapshot() directly rather than reading res.body.
+function resolve(id: string, timestamp: string, signals: Record<string, unknown> = SIGNALS) {
+  return resolveSnapshot(db, {
+    projectId,
+    snap: {
+      identityId: id,
+      signals: signals as Record<string, string | number | boolean | null>,
+      persistencePolicy: 'balanced',
+      timestamp,
+    },
+    clientIp: null,
+  });
 }
 
 // Connections and the seeded project are managed once at file scope so the two
@@ -55,7 +79,10 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM projects WHERE api_key = ${API_KEY}`; // cascades to identities/snapshots/links
-  await db`INSERT INTO projects (api_key, name) VALUES (${API_KEY}, 'Integration Test')`;
+  const [proj] = await db<{ id: string }[]>`
+    INSERT INTO projects (api_key, name) VALUES (${API_KEY}, 'Integration Test') RETURNING id
+  `;
+  projectId = proj!.id;
 });
 
 afterAll(async () => {
@@ -65,9 +92,7 @@ afterAll(async () => {
   await db.end();
 });
 
-describe.skipIf(!hasDb)('POST /v1/events — identity resolution (integration)', () => {
-  let firstId: string;
-
+describe.skipIf(!hasDb)('POST /v1/events — auth, validation, enqueue (integration)', () => {
   it('rejects a request with no API key (401)', async () => {
     const res = await request(app).post('/v1/events').send(snapshot(crypto.randomUUID(), ts(0)));
     expect(res.status).toBe(401);
@@ -89,29 +114,31 @@ describe.skipIf(!hasDb)('POST /v1/events — identity resolution (integration)',
     expect(res.status).toBe(400);
   });
 
-  it('resolves a first-seen device as a NEW identity', async () => {
-    firstId = crypto.randomUUID();
+  it('accepts a valid batch with 202 { accepted } and enqueues (does not resolve inline)', async () => {
     const res = await request(app)
       .post('/v1/events')
       .set('X-Api-Key', API_KEY)
-      .send(snapshot(firstId, ts(1000)));
+      .send(snapshot(crypto.randomUUID(), ts(500)));
+    expect(res.status).toBe(202);
+    expect(res.body.accepted).toBe(1);
+    expect(res.body.results).toBeUndefined(); // no inline resolution body anymore
+  });
+});
 
-    expect(res.status).toBe(200);
-    const r = res.body.results[0];
+describe.skipIf(!hasDb)('identity resolution pipeline (integration)', () => {
+  let firstId: string;
+
+  it('resolves a first-seen device as a NEW identity', async () => {
+    firstId = crypto.randomUUID();
+    const r = await resolve(firstId, ts(1000));
     expect(r.identityId).toBe(firstId);
     expect(r.isNew).toBe(true);
     expect(r.confidence).toBe(0);
   });
 
   it('resolves a returning device (same signals) to the SAME identity', async () => {
-    const res = await request(app)
-      .post('/v1/events')
-      .set('X-Api-Key', API_KEY)
-      .send(snapshot(crypto.randomUUID(), ts(2000))); // different client id, identical signals
-
-    expect(res.status).toBe(200);
-    const r = res.body.results[0];
-    expect(r.identityId).toBe(firstId);   // matched back to the first identity
+    const r = await resolve(crypto.randomUUID(), ts(2000)); // different client id, identical signals
+    expect(r.identityId).toBe(firstId); // matched back to the first identity
     expect(r.isNew).toBe(false);
     expect(r.confidence).toBeGreaterThan(0.35);
     expect(r.continuity).not.toBe('unknown');
@@ -120,10 +147,7 @@ describe.skipIf(!hasDb)('POST /v1/events — identity resolution (integration)',
   it('records drift for the returning identity', async () => {
     // Change a few volatile signals so a drift row is written.
     const drifted = { ...SIGNALS, 'screen.width': 1920, 'screen.height': 1080, 'tz.offset': 120 };
-    await request(app)
-      .post('/v1/events')
-      .set('X-Api-Key', API_KEY)
-      .send(snapshot(crypto.randomUUID(), ts(3000), drifted));
+    await resolve(crypto.randomUUID(), ts(3000), drifted);
 
     const drifts = await db<{ count: string }[]>`
       SELECT COUNT(*)::text AS count FROM drifts WHERE identity_id = ${firstId}
@@ -134,15 +158,57 @@ describe.skipIf(!hasDb)('POST /v1/events — identity resolution (integration)',
   it('is idempotent: a duplicate event_id (same id + timestamp) is a no-op', async () => {
     const dupId = crypto.randomUUID();
     const when = ts(4000);
-    const first = await request(app).post('/v1/events').set('X-Api-Key', API_KEY).send(snapshot(dupId, when));
-    const second = await request(app).post('/v1/events').set('X-Api-Key', API_KEY).send(snapshot(dupId, when));
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
+    await resolve(dupId, when);
+    await resolve(dupId, when);
 
     const rows = await db<{ count: string }[]>`
       SELECT COUNT(*)::text AS count FROM snapshots WHERE event_id = ${`${dupId}:${when}`}
     `;
     expect(rows[0]!.count).toBe('1');
+  });
+});
+
+describe.skipIf(!hasDb)('end-to-end: POST /v1/events → worker → DB', () => {
+  it('a snapshot enqueued via the route is resolved by the worker and persisted', async () => {
+    const id = crypto.randomUUID();
+    const when = ts(20_000);
+    const eventId = `${id}:${when}`;
+
+    // Spin up a real worker on the ingest queue for the duration of this test.
+    const worker = new Worker<IngestJobData>(
+      INGEST_QUEUE_NAME,
+      async (job) => resolveSnapshot(db, job.data),
+      { connection: createQueueConnection(), concurrency: 1 },
+    );
+
+    try {
+      // Match our specific job: the worker also drains any backlog enqueued by
+      // earlier tests (which ran with no worker up), so a bare 'completed' could
+      // fire for someone else's job before ours is processed.
+      const completed = new Promise<void>((resolve, reject) => {
+        worker.on('completed', (job) => {
+          if (job.data.snap.identityId === id) resolve();
+        });
+        worker.on('failed', (job, err) => {
+          if (job?.data.snap.identityId === id) reject(err);
+        });
+      });
+
+      const res = await request(app)
+        .post('/v1/events')
+        .set('X-Api-Key', API_KEY)
+        .send(snapshot(id, when, SIGNALS_B));
+      expect(res.status).toBe(202);
+
+      await completed;
+
+      const rows = await db<{ count: string }[]>`
+        SELECT COUNT(*)::text AS count FROM snapshots WHERE event_id = ${eventId}
+      `;
+      expect(rows[0]!.count).toBe('1');
+    } finally {
+      await worker.close();
+    }
   });
 });
 
@@ -152,11 +218,8 @@ describe.skipIf(!hasDb)('account linking + coordinated_accounts (integration)', 
   beforeAll(async () => {
     // Seed one resolved identity (distinct device) to link accounts to. Capture the
     // server-resolved id rather than assuming it equals the client-sent uuid.
-    const res = await request(app)
-      .post('/v1/events')
-      .set('X-Api-Key', API_KEY)
-      .send(snapshot(crypto.randomUUID(), ts(10_000), SIGNALS_B));
-    identityId = res.body.results[0].identityId;
+    const r = await resolve(crypto.randomUUID(), ts(10_000), SIGNALS_B);
+    identityId = r.identityId;
   });
 
   it('links accounts and upserts link_count on repeats', async () => {
@@ -194,10 +257,7 @@ describe.skipIf(!hasDb)('account linking + coordinated_accounts (integration)', 
   });
 
   it('raises the coordinated_accounts risk flag on the next event', async () => {
-    const res = await request(app)
-      .post('/v1/events')
-      .set('X-Api-Key', API_KEY)
-      .send(snapshot(crypto.randomUUID(), ts(11_000), SIGNALS_B));
-    expect(res.body.results[0].risk.flags).toContain('coordinated_accounts');
+    const r = await resolve(crypto.randomUUID(), ts(11_000), SIGNALS_B);
+    expect(r.risk.flags).toContain('coordinated_accounts');
   });
 });

@@ -1,36 +1,18 @@
-import { trace } from '@opentelemetry/api';
 import { Router, type Request, type Response, type IRouter } from 'express';
-import type { TransactionSql } from 'postgres';
-import { EventsBatchSchema, deriveEventId } from '../schemas/events.js';
-import { db } from '../db/client.js';
-import {
-  computeSimHash,
-  simHashToHex,
-  simHashToInt64,
-  weightedJaccard,
-  scoreToConfidenceBand,
-  scoreToIdentityContinuity,
-  diffSnapshots,
-  SIMHASH_CANDIDATE_THRESHOLD,
-} from '@tindalabs/scent-engine';
-import type { SignalMap, PersistencePolicy } from '@tindalabs/scent-engine';
-import { absenceWeightOverrides, updateSignalProfile } from '../engine/signal-profile.js';
-import type { SignalProfile } from '../engine/signal-profile.js';
-import { assessRisk } from '../risk/assess.js';
-import { deliverWebhooks } from '../risk/webhook.js';
-
-const tracer = trace.getTracer('scent-server');
+import { EventsBatchSchema } from '../schemas/events.js';
+import { getIngestQueue, INGEST_QUEUE_NAME } from '../queue/ingest.js';
 
 export const eventsRouter: IRouter = Router();
 
-// Confidence threshold above which a second candidate is considered an
-// ambiguous match (one snapshot plausibly matching two stored identities).
-const AMBIGUOUS_MATCH_THRESHOLD = 0.60;
-
-// Confidence above which two distinct stored identities are considered the
-// same real-world entity and should be linked into a cluster.
-const CLUSTER_LINK_THRESHOLD = 0.90;
-
+// POST /v1/events — accept a batch of snapshots and enqueue one resolution job per
+// snapshot, returning 202 immediately. The full resolution pipeline (matching,
+// identity tx, drift, cluster linking, risk, webhooks) runs in the background worker
+// (see src/worker.ts → pipeline/resolve.ts).
+//
+// This intentionally no longer returns per-snapshot confidence/risk. That is safe:
+// the SDK's flush() fires-and-forgets — it awaits the fetch but never reads the body
+// (packages/sdk/src/index.ts). Callers needing an inline answer use POST /v1/resolve,
+// which stays synchronous.
 eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   const parsed = EventsBatchSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -40,280 +22,20 @@ eventsRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
   const projectId = req.projectId;
 
-  // Capture the client IP server-side. Trust X-Forwarded-For only when behind
-  // a known proxy; for Phase 3 we use Express's req.ip which respects trust proxy.
+  // Capture the client IP server-side at the edge. Trust X-Forwarded-For only when
+  // behind a known proxy; req.ip respects Express's trust proxy setting. The worker
+  // has no request context, so this is threaded into each job.
   const clientIp = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
     ?? req.ip
     ?? null;
 
-  const results: Array<{
-    identityId: string;
-    confidence: number;
-    isNew: boolean;
-    continuity: string;
-    risk: { score: number; band: string; flags: string[] };
-    ambiguous?: boolean;
-  }> = [];
+  const queue = getIngestQueue();
+  await queue.addBulk(
+    parsed.data.snapshots.map((snap) => ({
+      name: INGEST_QUEUE_NAME,
+      data: { projectId, snap, clientIp },
+    })),
+  );
 
-  for (const snap of parsed.data.snapshots) {
-    await tracer.startActiveSpan('scent.identity_resolution', async (span) => {
-    try {
-    span.setAttribute('scent.identity.input_id', snap.identityId);
-    if (snap.traceparent) span.setAttribute('scent.traceparent', snap.traceparent);
-
-    const eventId = deriveEventId(snap.identityId, snap.timestamp);
-
-    // Idempotent deduplication: identical event_id is a no-op.
-    const existing = await db<{ id: string }[]>`
-      SELECT id FROM snapshots WHERE event_id = ${eventId} LIMIT 1
-    `;
-    if (existing[0]) {
-      span.setAttribute('scent.identity.deduplicated', true);
-      results.push({ identityId: snap.identityId, confidence: 1, isNew: false, continuity: 'confirmed', risk: { score: 0, band: 'low', flags: [] } });
-      return;
-    }
-
-    const signals = snap.signals as SignalMap;
-    const simHash = computeSimHash(signals);
-    const signalHash = simHashToHex(simHash);
-    const simHashInt = simHashToInt64(simHash);
-
-    // Candidate retrieval: pre-filter in the database on the denormalized
-    // latest_signal_hash, returning only identities whose SimHash is within the
-    // Hamming threshold (bit_count of the XOR). The full signals/profile of just
-    // those survivors are pulled via LATERAL — we no longer marshal every
-    // identity's signals into the server. Same recall as the old JS pre-filter.
-    const candidates = await db<{
-      identity_id: string;
-      timestamp: Date;
-      signals: SignalMap;
-      signal_profile: SignalProfile;
-    }[]>`
-      SELECT i.id AS identity_id, latest.timestamp, latest.signals, i.signal_profile
-      FROM identities i
-      JOIN LATERAL (
-        SELECT signals, timestamp
-        FROM snapshots
-        WHERE identity_id = i.id
-        ORDER BY timestamp DESC
-        LIMIT 1
-      ) latest ON true
-      WHERE i.project_id = ${projectId}
-        AND i.latest_signal_hash IS NOT NULL
-        AND bit_count((i.latest_signal_hash # ${simHashInt.toString()}::bigint)::bit(64)) <= ${SIMHASH_CANDIDATE_THRESHOLD}
-    `;
-
-    // Score every candidate that survived the DB pre-filter.
-    const scored: Array<{ identityId: string; confidence: number }> = [];
-
-    for (const candidate of candidates) {
-      const daysSince =
-        (new Date(snap.timestamp).getTime() - new Date(candidate.timestamp).getTime()) /
-        (1000 * 60 * 60 * 24);
-
-      const weightOverrides = absenceWeightOverrides(candidate.signal_profile);
-
-      const { confidence } = weightedJaccard(signals, candidate.signals, {
-        daysSinceLastObservation: daysSince,
-        weightOverrides,
-      });
-
-      scored.push({ identityId: candidate.identity_id, confidence });
-    }
-
-    // Sort descending by confidence.
-    scored.sort((a, b) => b.confidence - a.confidence);
-
-    const best = scored[0];
-    const secondBest = scored[1];
-
-    const isNew = !best || best.confidence < 0.35;
-    const resolvedId = isNew ? snap.identityId : best.identityId;
-    const finalConfidence = isNew ? 0 : best.confidence;
-
-    // Flag ambiguous matches: two candidates both above the ambiguity threshold.
-    const ambiguous =
-      !isNew &&
-      secondBest !== undefined &&
-      secondBest.confidence >= AMBIGUOUS_MATCH_THRESHOLD;
-
-    const continuity = scoreToIdentityContinuity(finalConfidence);
-    const confidenceBand = scoreToConfidenceBand(finalConfidence);
-
-    // Look up the stored signal_profile for the resolved identity (may be new).
-    const storedProfile = isNew
-      ? {}
-      : ((
-          await db<{ signal_profile: SignalProfile }[]>`
-            SELECT signal_profile FROM identities WHERE id = ${resolvedId} LIMIT 1
-          `
-        )[0]?.signal_profile ?? {});
-
-    const updatedProfile = updateSignalProfile(storedProfile, signals, snap.timestamp);
-
-    // newSnapId is set inside the transaction and read outside to run risk assessment.
-    let newSnapId: string | null = null;
-
-    await db.begin(async (tx) => {
-      if (isNew) {
-        await tx`
-          INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile, latest_signal_hash)
-          VALUES (${resolvedId}, ${projectId}, ${confidenceBand}, 'low', ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)}, ${simHashInt.toString()}::bigint)
-          ON CONFLICT (id) DO NOTHING
-        `;
-      } else {
-        await tx`
-          UPDATE identities
-          SET last_seen = now(),
-              snapshot_count = snapshot_count + 1,
-              confidence_band = ${confidenceBand},
-              signal_profile = ${tx.json(updatedProfile as unknown as import('postgres').JSONValue)},
-              latest_signal_hash = ${simHashInt.toString()}::bigint
-          WHERE id = ${resolvedId}
-        `;
-      }
-
-      const [newSnap] = await tx<{ id: string }[]>`
-        INSERT INTO snapshots
-          (identity_id, project_id, event_id, timestamp, signals, signal_hash,
-           persistence_policy, traceparent, client_ip)
-        VALUES
-          (${resolvedId}, ${projectId}, ${eventId}, ${snap.timestamp},
-           ${tx.json(signals)}, ${signalHash},
-           ${snap.persistencePolicy as PersistencePolicy},
-           ${snap.traceparent ?? null},
-           ${clientIp}::inet)
-        RETURNING id
-      `;
-      if (newSnap) newSnapId = newSnap.id;
-
-      // Drift: compute against the previous snapshot for this identity.
-      if (!isNew && newSnap) {
-        const prevSnap = await tx<{ id: string; signals: SignalMap }[]>`
-          SELECT id, signals FROM snapshots
-          WHERE identity_id = ${resolvedId} AND id != ${newSnap.id}
-          ORDER BY timestamp DESC
-          LIMIT 1
-        `;
-        if (prevSnap[0]) {
-          const drift = diffSnapshots(prevSnap[0].signals, signals);
-          await tx`
-            INSERT INTO drifts
-              (identity_id, before_snapshot_id, after_snapshot_id,
-               classification, entropy, changed_signals, added_signals, removed_signals)
-            VALUES
-              (${resolvedId}, ${prevSnap[0].id}, ${newSnap.id},
-               ${drift.classification}, ${drift.entropy},
-               ${drift.changedSignals}, ${drift.addedSignals}, ${drift.removedSignals})
-          `;
-        }
-      }
-
-      // Cluster linking: if a second candidate also scored very highly, these two
-      // stored identities are very likely the same real-world entity. Link them.
-      if (!isNew && secondBest && secondBest.confidence >= CLUSTER_LINK_THRESHOLD) {
-        await linkToCluster(tx, projectId, resolvedId, secondBest.identityId, secondBest.confidence);
-      }
-    });
-
-    // Risk assessment runs outside the identity transaction so its DB writes
-    // don't block the commit, and a detector failure can't roll back the snapshot.
-    let risk = { score: 0, band: 'low', flags: [] as string[] };
-    if (newSnapId) {
-      const clusterId =
-        (
-          await db<{ cluster_id: string | null }[]>`
-            SELECT cluster_id FROM identities WHERE id = ${resolvedId} LIMIT 1
-          `
-        )[0]?.cluster_id ?? null;
-
-      const assessment = await assessRisk(db, {
-        identityId: resolvedId,
-        snapshotId: newSnapId,
-        projectId,
-        signals,
-        signalHash,
-        clusterId,
-        clientIp,
-        timestamp: snap.timestamp,
-        isNew,
-      });
-
-      risk = {
-        score: assessment.score,
-        band: assessment.band,
-        flags: assessment.flags.map((f) => f.code),
-      };
-
-      // Fire webhooks in the background — response is not gated on delivery.
-      void deliverWebhooks(db, projectId, resolvedId, newSnapId, assessment);
-    }
-
-    span.setAttributes({
-      'scent.identity.id': resolvedId,
-      'scent.identity.is_new': isNew,
-      'scent.identity.confidence': finalConfidence,
-    });
-
-    results.push({ identityId: resolvedId, confidence: finalConfidence, isNew, continuity, risk, ...(ambiguous ? { ambiguous: true } : {}) });
-    } finally {
-      span.end();
-    }
-    }); // end startActiveSpan
-  }
-
-  res.json({ results });
+  res.status(202).json({ accepted: parsed.data.snapshots.length });
 });
-
-// Link two identities into a cluster (or add to an existing one).
-// The identity with an existing cluster_id takes precedence; otherwise a new
-// cluster is created and both identities are assigned to it.
-async function linkToCluster(
-  tx: TransactionSql,
-  projectId: string,
-  identityIdA: string,
-  identityIdB: string,
-  confidence: number,
-): Promise<void> {
-  const rows = await tx<{ id: string; cluster_id: string | null }[]>`
-    SELECT id, cluster_id FROM identities WHERE id IN (${identityIdA}, ${identityIdB})
-  `;
-
-  const a = rows.find((r) => r.id === identityIdA);
-  const b = rows.find((r) => r.id === identityIdB);
-  if (!a || !b) return;
-
-  const existingClusterId = a.cluster_id ?? b.cluster_id;
-
-  let clusterId: string;
-  if (existingClusterId) {
-    clusterId = existingClusterId;
-  } else {
-    const [cluster] = await tx<{ id: string }[]>`
-      INSERT INTO clusters (project_id, reason)
-      VALUES (${projectId}, 'high_confidence_signal_overlap')
-      RETURNING id
-    `;
-    if (!cluster) return;
-    clusterId = cluster.id;
-  }
-
-  // Update both identities to reference the cluster.
-  await tx`
-    UPDATE identities SET cluster_id = ${clusterId}
-    WHERE id IN (${identityIdA}, ${identityIdB}) AND cluster_id IS NULL
-  `;
-
-  // Write audit entries for any identity newly assigned to this cluster.
-  for (const { id, cluster_id } of [
-    { id: identityIdA, cluster_id: a.cluster_id },
-    { id: identityIdB, cluster_id: b.cluster_id },
-  ]) {
-    if (!cluster_id) {
-      await tx`
-        INSERT INTO cluster_merges (cluster_id, identity_id, confidence, reason)
-        VALUES (${clusterId}, ${id}, ${confidence}, 'jaccard_similarity_above_threshold')
-      `;
-    }
-  }
-}

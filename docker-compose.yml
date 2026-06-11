@@ -53,6 +53,28 @@ services:
       redis:
         condition: service_healthy
 
+  scent-worker:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    # Same image as scent-server; only the entrypoint differs — this runs the
+    # BullMQ ingest worker instead of the HTTP server. Mirrors the Render topology
+    # (a Background Worker alongside the Web Service, sharing Postgres + Redis).
+    command: ["node", "--import", "./dist/tracing.js", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://scent:scent_dev@postgres:5432/scent
+      REDIS_URL: redis://redis:6379
+      OTEL_SERVICE_NAME: scent-worker
+      OTEL_SERVICE_VERSION: "0.0.1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   scent-observatory:
     build:
       context: .
