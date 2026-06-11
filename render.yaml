@@ -67,6 +67,12 @@ services:
       # OTEL_EXPORTER_OTLP_ENDPOINT once a hosted Tempo/collector exists.
       - key: OTEL_SDK_DISABLED
         value: "true"
+      # Comma-separated production origins allowed by CORS (localhost dev origins
+      # are always allowed). Set this to the hosted Observatory origin once it
+      # exists, e.g. https://observatory.tindalabs.dev — left blank for an
+      # API-only first deploy (server-to-server traffic sends no Origin header).
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
 
   # ---- Background Worker: drains the ingest queue ------------------------------
   - type: worker
