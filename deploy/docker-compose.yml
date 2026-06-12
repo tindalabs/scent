@@ -1,0 +1,107 @@
+# Production stack for a single VPS (e.g. Hetzner CX22), using the prebuilt
+# tindalabs/scent-server image. Runs the server, the async-ingest worker, Postgres,
+# Redis, and Caddy (automatic HTTPS) — everything on one box.
+#
+#   cp .env.example .env   # then edit
+#   docker compose pull && docker compose up -d
+#
+# See README.md in this directory for the full runbook (DNS, minting an API key,
+# updates, backups). This is NOT the repo-root docker-compose.yml — that one is the
+# local dev stack (builds from source, seeds a demo key, includes the Observatory UI
+# and a Grafana Tempo observability stack).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SCENT_DOMAIN: ${SCENT_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      scent-server:
+        condition: service_healthy
+
+  scent-server:
+    image: tindalabs/scent-server:${SCENT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Runs migrations on boot, then serves the ingest/query API. Not published to the
+    # host — only Caddy reaches it, over the internal network.
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: postgresql://scent:${POSTGRES_PASSWORD}@postgres:5432/scent
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      OTEL_SDK_DISABLED: "true"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scent-worker:
+    image: tindalabs/scent-server:${SCENT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Same image, different entrypoint: drains the BullMQ ingest queue. Scale with
+    # `docker compose up -d --scale scent-worker=N` (no ports/name to collide).
+    command: ["node", "--import", "./dist/tracing.js", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://scent:${POSTGRES_PASSWORD}@postgres:5432/scent
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      WORKER_CONCURRENCY: "5"
+      OTEL_SDK_DISABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scent
+      POSTGRES_USER: scent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scent -d scent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly = durability for the ingest queue across restarts; noeviction is a
+    # hard BullMQ requirement (it must never have keys evicted under memory pressure).
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
