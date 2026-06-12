@@ -4,6 +4,7 @@ import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { resolveSnapshot } from '../pipeline/resolve.js';
+import { hashApiKey } from '../middleware/api-key.js';
 
 // Integration coverage for the *resolution decisions* — new-vs-returning boundary,
 // ambiguous match, and cluster linking — that the happy-path suite doesn't reach.
@@ -87,16 +88,16 @@ beforeAll(async () => {
   if (!hasDb) return;
   await migrate();
   await redis.flushdb();
-  await db`DELETE FROM projects WHERE api_key = ${API_KEY}`;
+  await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key, name) VALUES (${API_KEY}, 'Resolution Integration') RETURNING id
+    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Resolution Integration') RETURNING id
   `;
   projectId = proj!.id;
 });
 
 afterAll(async () => {
   if (!hasDb) return;
-  await db`DELETE FROM projects WHERE api_key = ${API_KEY}`;
+  await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
   await redis.quit();
   await db.end();
 });

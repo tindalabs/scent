@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { redis } from '../db/redis.js';
 import { db } from '../db/client.js';
+import { hashApiKey } from './api-key.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -26,7 +27,9 @@ export async function requireApiKey(
     return;
   }
 
-  const cacheKey = `proj:${apiKey}`;
+  // Hash before it touches the DB or Redis — the plaintext key is never stored.
+  const keyHash = hashApiKey(apiKey);
+  const cacheKey = `proj:${keyHash}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -36,7 +39,7 @@ export async function requireApiKey(
   }
 
   const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key = ${apiKey} LIMIT 1
+    SELECT id FROM projects WHERE api_key_hash = ${keyHash} LIMIT 1
   `;
 
   if (!project[0]) {

@@ -7,10 +7,10 @@ COMMENT ON DATABASE scent IS 'Scent identity continuity platform';
 -- and will be a no-op once these tables exist.
 
 CREATE TABLE IF NOT EXISTS projects (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  api_key    TEXT UNIQUE NOT NULL,
-  name       TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_key_hash TEXT UNIQUE NOT NULL,
+  name         TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS identities (

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { redis } from '../db/redis.js';
+import { hashApiKey } from './api-key.js';
 
 // Fixed-window rate limiting keyed on the validated API key.
 // 1000 requests per 60-second window per project.
@@ -17,8 +18,9 @@ export async function rateLimitMiddleware(
     return;
   }
 
+  // Bucket on the key hash, not the plaintext, so raw keys never appear in Redis.
   const window = Math.floor(Date.now() / (WINDOW_SECONDS * 1000));
-  const key = `rl:${apiKey}:${window}`;
+  const key = `rl:${hashApiKey(apiKey)}:${window}`;
 
   const count = await redis.incr(key);
   if (count === 1) {
