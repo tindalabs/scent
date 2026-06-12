@@ -74,11 +74,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
       - name: Build and push scent-server to GHCR
         uses: docker/build-push-action@v5
@@ -93,8 +93,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push scent-server to Docker Hub
-        uses: docker/build-push-action@v5
         if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: packages/server/Dockerfile
