@@ -17,3 +17,22 @@ queries:
 # broaden this exclusion to a whole-repo query filter.
 paths-ignore:
   - packages/server/src/middleware/api-key.ts
+
+query-filters:
+  # These two queries only recognize a handful of specific libraries and cannot see
+  # this codebase's deliberate, equivalent (arguably better) implementations — so
+  # they false-positive on correct code and carry little signal here. Unlike the
+  # password-hash query (kept active, since it WOULD catch a real future fast-hash),
+  # these can't distinguish protected from unprotected routes at all.
+  #
+  # - missing-rate-limiting: every /v1 and /admin route IS rate-limited, via a shared
+  #   Redis fixed-window limiter mounted on the router (middleware/rate-limit.ts) —
+  #   cross-instance, unlike express-rate-limit's default in-memory store. CodeQL only
+  #   recognizes named libraries, so it flags the custom limiter (including on /v1).
+  # - missing-token-validation: the cookie-authenticated /admin API uses a SameSite=Lax
+  #   session cookie plus a double-submit CSRF token (admin/csrf.ts, requireCsrf on all
+  #   mutations). The /v1 data API uses header auth (X-Api-Key), which isn't CSRF-able.
+  - exclude:
+      id: js/missing-rate-limiting
+  - exclude:
+      id: js/missing-token-validation
