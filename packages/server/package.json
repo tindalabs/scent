@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "migrate": "tsx src/db/migrate-cli.ts",
+    "create-project": "tsx src/scripts/create-project.ts",
     "worker": "tsx src/worker.ts",
     "worker:start": "node --import ./dist/tracing.js dist/worker.js",
     "test": "vitest run",

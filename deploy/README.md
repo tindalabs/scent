@@ -38,16 +38,18 @@ Once healthy, `https://<SCENT_DOMAIN>/health` returns `{"status":"ok"}`.
 
 ## Mint an API key
 
-A fresh database has no projects (no demo key in production). Create one — the API
-key is whatever you insert; generate a strong value:
+A fresh database has no projects (no demo key in production). API keys are stored
+only as a SHA-256 hash, so create one with the helper script — it generates the key,
+stores its hash, and prints the plaintext **once** (it cannot be recovered later):
 
 ```bash
-docker compose exec postgres \
-  psql -U scent -d scent -c \
-  "INSERT INTO projects (api_key, name) VALUES ('$(openssl rand -hex 24)', 'Production') RETURNING api_key;"
+docker compose exec scent-server node dist/scripts/create-project.js "Production"
+# Created project "Production" (id: ...)
+# API key (store it now - it is not recoverable):
+# 9f2c...   <- the key, on stdout
 ```
 
-Use the returned key as the SDK's `apiKey`, pointing it at `https://<SCENT_DOMAIN>/v1`.
+Use that key as the SDK's `apiKey`, pointing it at `https://<SCENT_DOMAIN>/v1`.
 
 Verify end to end:
 ```bash

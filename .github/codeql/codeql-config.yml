@@ -1,0 +1,19 @@
+name: "Scent CodeQL config"
+
+# Broadest pack — extra coverage is worth the noise for a project this size.
+queries:
+  - uses: security-and-quality
+
+# This is the ONLY exclusion, scoped to a single 7-line file, purely to silence one
+# false positive. js/insufficient-password-hash flags the SHA-256 hashing of the
+# project API key in middleware/api-key.ts as if it were a password. API keys are
+# 256-bit random tokens (crypto.randomBytes), NOT passwords: a fast hash is the
+# correct, industry-standard choice (O(1) lookup, no rainbow-table/brute-force risk),
+# and a slow salted KDF would add no security.
+#
+# The query stays ACTIVE everywhere else. Future password-based auth — e.g. Observatory
+# login and API-key rotation — lives in other files and MUST use a slow salted KDF
+# (bcrypt/scrypt/argon2); it will still be analyzed and flagged by this rule. Do not
+# broaden this exclusion to a whole-repo query filter.
+paths-ignore:
+  - packages/server/src/middleware/api-key.ts

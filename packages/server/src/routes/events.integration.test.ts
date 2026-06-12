@@ -8,6 +8,7 @@ import { redis } from '../db/redis.js';
 import { resolveSnapshot } from '../pipeline/resolve.js';
 import { createQueueConnection, INGEST_QUEUE_NAME } from '../queue/ingest.js';
 import type { IngestJobData } from '../queue/ingest.js';
+import { hashApiKey } from '../middleware/api-key.js';
 
 // Integration tests hit a real Postgres + Redis. They run in CI (which provides
 // DATABASE_URL/REDIS_URL via service containers) and locally when those env vars
@@ -78,16 +79,16 @@ beforeAll(async () => {
   if (!hasDb) return;
   await migrate();
   await redis.flushdb();
-  await db`DELETE FROM projects WHERE api_key = ${API_KEY}`; // cascades to identities/snapshots/links
+  await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`; // cascades to identities/snapshots/links
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key, name) VALUES (${API_KEY}, 'Integration Test') RETURNING id
+    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Integration Test') RETURNING id
   `;
   projectId = proj!.id;
 });
 
 afterAll(async () => {
   if (!hasDb) return;
-  await db`DELETE FROM projects WHERE api_key = ${API_KEY}`;
+  await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
   await redis.quit();
   await db.end();
 });
