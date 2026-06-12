@@ -1,6 +1,5 @@
-import { randomBytes } from 'node:crypto';
 import { db } from '../db/client.js';
-import { hashApiKey } from '../middleware/api-key.js';
+import { mintApiKey } from '../lib/api-key.js';
 
 // Create a project and mint its API key. Only the key's hash is stored; the
 // plaintext is printed once here and cannot be recovered later.
@@ -15,12 +14,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // 32 random bytes -> 64 hex chars. High entropy, so the stored SHA-256 needs no salt.
-  const apiKey = randomBytes(32).toString('hex');
+  const { apiKey, keyHash, keyPrefix } = mintApiKey();
 
   const [project] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name)
-    VALUES (${hashApiKey(apiKey)}, ${name})
+    INSERT INTO projects (api_key_hash, name, key_prefix)
+    VALUES (${keyHash}, ${name}, ${keyPrefix})
     RETURNING id
   `;
 

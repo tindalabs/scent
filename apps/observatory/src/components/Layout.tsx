@@ -1,14 +1,24 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, GitBranch, Network } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, GitBranch, Network, KeyRound, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils.js';
+import { useAuth } from '../contexts/AuthContext.js';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/identities', label: 'Identities', icon: Users, end: false },
   { to: '/accounts', label: 'Account clusters', icon: Network, end: false },
+  { to: '/settings', label: 'API keys', icon: KeyRound, end: false },
 ];
 
 export function Layout(): React.ReactElement {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function onLogout(): Promise<void> {
+    await logout();
+    navigate('/login');
+  }
+
   return (
     <div className="flex min-h-screen">
       <aside className="w-52 flex-shrink-0 border-r border-border bg-card flex flex-col">
@@ -37,8 +47,16 @@ export function Layout(): React.ReactElement {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 py-3 border-t border-border">
-          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <div className="border-t border-border px-3 py-3 space-y-2">
+          {user && <p className="px-2 text-xs text-muted-foreground truncate" title={user.email}>{user.email}</p>}
+          <button
+            onClick={onLogout}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut size={15} />
+            Sign out
+          </button>
+          <span className="flex items-center gap-1.5 px-2 text-xs text-muted-foreground">
             <GitBranch size={11} /> Phase 8
           </span>
         </div>

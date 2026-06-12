@@ -9,6 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "migrate": "tsx src/db/migrate-cli.ts",
     "create-project": "tsx src/scripts/create-project.ts",
+    "create-admin": "tsx src/scripts/create-admin.ts",
     "worker": "tsx src/worker.ts",
     "worker:start": "node --import ./dist/tracing.js dist/worker.js",
     "test": "vitest run",
@@ -23,7 +24,9 @@
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.41.1",
     "@tindalabs/scent-engine": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "bullmq": "^5.78.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^4.18.0",
     "ioredis": "^5.11.1",
@@ -32,6 +35,8 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/node": "^25.9.2",

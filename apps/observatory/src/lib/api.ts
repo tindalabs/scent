@@ -11,6 +11,90 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Error carrying the HTTP status, so callers can distinguish 401 (not signed in)
+// from real failures.
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// Read the JS-readable double-submit CSRF token set at login.
+function readCsrfToken(): string {
+  const m = /(?:^|;\s*)scent_csrf=([^;]+)/.exec(document.cookie);
+  return m?.[1] ? decodeURIComponent(m[1]) : '';
+}
+
+// Admin management API. Uses cookie auth (credentials: 'include') rather than the
+// build-time project key — the session cookie is set by POST /admin/login. For
+// state-changing requests, echoes the CSRF token in the X-CSRF-Token header.
+async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const csrfHeader = method === 'GET' ? {} : { 'X-CSRF-Token': readCsrfToken() };
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...csrfHeader, ...(init?.headers ?? {}) },
+  });
+  if (!res.ok) {
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  return res.json() as Promise<T>;
+}
+
+export interface AdminUser {
+  email: string;
+}
+
+export interface AdminProject {
+  id: string;
+  name: string;
+  key_prefix: string | null;
+  created_at: string;
+}
+
+// Returns the signed-in admin, or null if there's no valid session (401).
+export async function adminMe(): Promise<AdminUser | null> {
+  try {
+    return await adminFetch<AdminUser>('/admin/me');
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
+}
+
+export function adminLogin(email: string, password: string): Promise<AdminUser> {
+  return adminFetch('/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+}
+
+export function adminLogout(): Promise<{ ok: boolean }> {
+  return adminFetch('/admin/logout', { method: 'POST' });
+}
+
+export function listProjects(): Promise<{ projects: AdminProject[] }> {
+  return adminFetch('/admin/projects');
+}
+
+export function createProject(name: string): Promise<{ project: AdminProject; apiKey: string }> {
+  return adminFetch('/admin/projects', { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export function rotateProjectKey(id: string): Promise<{ apiKey: string }> {
+  return adminFetch(`/admin/projects/${encodeURIComponent(id)}/rotate`, { method: 'POST' });
+}
+
+export function deleteProject(id: string): Promise<{ deleted: boolean }> {
+  return adminFetch(`/admin/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 // Types mirroring server responses
 
 export interface Identity {
