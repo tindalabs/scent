@@ -26,7 +26,8 @@
     "overrides": {
       "vitest@<4.1.0": ">=4.1.0",
       "@vitest/coverage-v8@<4.1.0": ">=4.1.0",
-      "ioredis": "5.11.1"
+      "ioredis": "5.11.1",
+      "@grpc/grpc-js@>=1.14.0 <1.14.4": ">=1.14.4"
     }
   }
 }
