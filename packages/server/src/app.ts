@@ -11,7 +11,9 @@ import { clustersRouter } from './routes/clusters.js';
 import { accountRouter } from './routes/account.js';
 import { accountsRouter } from './routes/accounts.js';
 
-const ALLOWED_ORIGINS = [
+// Localhost dev origins are always allowed (docker-compose Observatory, Vite
+// dev/preview, tindalabs-dev Next.js).
+const DEV_ORIGINS = [
   'http://localhost:4000',  // Observatory (docker-compose)
   'http://localhost:5173',  // Vite dev (demo app)
   'http://localhost:5174',  // Vite dev (alternate port)
@@ -21,6 +23,16 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3003',  // tindalabs-dev alternate
 ];
 
+// Production origins (e.g. the hosted Observatory) come from CORS_ALLOWED_ORIGINS,
+// a comma-separated list, so a deploy adds its own origin without a code change.
+function resolveAllowedOrigins(): string[] {
+  const fromEnv = (process.env['CORS_ALLOWED_ORIGINS'] ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return [...DEV_ORIGINS, ...fromEnv];
+}
+
 // Builds the fully-wired Express app — all middleware and routes — but does NOT
 // listen or run migrations. Keeping construction free of side effects lets the
 // integration tests import the real app and drive it with supertest, while the
@@ -28,10 +40,12 @@ const ALLOWED_ORIGINS = [
 export function createApp(): Express {
   const app = express();
 
+  const allowedOrigins = resolveAllowedOrigins();
+
   app.use(cors({
     origin: (origin, cb) => {
       // Allow requests with no origin (curl, server-to-server) and whitelisted origins.
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
