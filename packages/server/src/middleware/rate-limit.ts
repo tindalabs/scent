@@ -37,3 +37,30 @@ export async function rateLimitMiddleware(
 
   next();
 }
+
+// Per-IP fixed-window limiter for the cookie-authenticated admin API (which has no
+// API key to bucket on). Applied at the /admin mount so every admin route — login,
+// and the session-gated project mutations — is rate-limited.
+const ADMIN_MAX_REQUESTS = 120;
+
+export async function adminRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const ip = req.ip ?? 'unknown';
+  const window = Math.floor(Date.now() / (WINDOW_SECONDS * 1000));
+  const key = `rl:admin:${ip}:${window}`;
+
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, WINDOW_SECONDS);
+  }
+
+  if (count > ADMIN_MAX_REQUESTS) {
+    res.status(429).json({ error: 'Rate limit exceeded' });
+    return;
+  }
+
+  next();
+}

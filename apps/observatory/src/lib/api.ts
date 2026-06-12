@@ -20,13 +20,22 @@ export class ApiError extends Error {
   }
 }
 
+// Read the JS-readable double-submit CSRF token set at login.
+function readCsrfToken(): string {
+  const m = /(?:^|;\s*)scent_csrf=([^;]+)/.exec(document.cookie);
+  return m?.[1] ? decodeURIComponent(m[1]) : '';
+}
+
 // Admin management API. Uses cookie auth (credentials: 'include') rather than the
-// build-time project key — the session cookie is set by POST /admin/login.
+// build-time project key — the session cookie is set by POST /admin/login. For
+// state-changing requests, echoes the CSRF token in the X-CSRF-Token header.
 async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const csrfHeader = method === 'GET' ? {} : { 'X-CSRF-Token': readCsrfToken() };
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...csrfHeader, ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;

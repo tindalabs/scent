@@ -16,6 +16,13 @@ const PASSWORD = 'test-password-123';
 
 const app = createApp();
 
+// Pull the double-submit CSRF token out of a Set-Cookie header.
+function csrfFrom(setCookie: string[] | string | undefined): string {
+  const cookies = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  const c = cookies.find((x) => x.startsWith('scent_csrf='));
+  return c ? c.split(';')[0]!.slice('scent_csrf='.length) : '';
+}
+
 // Hit the data API with a given key — used to assert keys (in)validate as expected.
 function resolveWith(apiKey: string) {
   return request(app)
@@ -47,6 +54,7 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
   const agent = request.agent(app);
   let projectId: string;
   let apiKey: string;
+  let csrf = '';
 
   it('rejects unauthenticated admin requests (401)', async () => {
     const res = await request(app).get('/admin/projects');
@@ -62,14 +70,21 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
     const login = await agent.post('/admin/login').send({ email: EMAIL, password: PASSWORD });
     expect(login.status).toBe(200);
     expect(login.body.email).toBe(EMAIL);
+    csrf = csrfFrom(login.headers['set-cookie']);
+    expect(csrf).not.toBe('');
 
     const me = await agent.get('/admin/me');
     expect(me.status).toBe(200);
     expect(me.body.email).toBe(EMAIL);
   });
 
+  it('rejects a mutation without the CSRF token (403)', async () => {
+    const res = await agent.post('/admin/projects').send({ name: 'AdminIT NoCsrf' });
+    expect(res.status).toBe(403);
+  });
+
   it('creates a project, returns the key once, stores only its hash', async () => {
-    const res = await agent.post('/admin/projects').send({ name: 'AdminIT Alpha' });
+    const res = await agent.post('/admin/projects').set('X-CSRF-Token', csrf).send({ name: 'AdminIT Alpha' });
     expect(res.status).toBe(201);
     apiKey = res.body.apiKey;
     projectId = res.body.project.id;
@@ -91,7 +106,7 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
     const oldHash = hashApiKey(apiKey);
     expect(await redis.get(`proj:${oldHash}`)).not.toBeNull(); // warmed by previous test
 
-    const res = await agent.post(`/admin/projects/${projectId}/rotate`);
+    const res = await agent.post(`/admin/projects/${projectId}/rotate`).set('X-CSRF-Token', csrf);
     expect(res.status).toBe(200);
     const newKey: string = res.body.apiKey;
     expect(newKey).not.toBe(apiKey);
@@ -104,7 +119,7 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
   });
 
   it('deletes the project: its key stops working', async () => {
-    const res = await agent.delete(`/admin/projects/${projectId}`);
+    const res = await agent.delete(`/admin/projects/${projectId}`).set('X-CSRF-Token', csrf);
     expect(res.status).toBe(200);
     expect(res.body.deleted).toBe(true);
 
@@ -114,7 +129,7 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
   });
 
   it('logout clears the session', async () => {
-    await agent.post('/admin/logout');
+    await agent.post('/admin/logout').set('X-CSRF-Token', csrf);
     const me = await agent.get('/admin/me');
     expect(me.status).toBe(401);
   });

@@ -1,7 +1,7 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { rateLimitMiddleware } from './middleware/rate-limit.js';
+import { rateLimitMiddleware, adminRateLimitMiddleware } from './middleware/rate-limit.js';
 import { requireApiKey } from './middleware/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { eventsRouter } from './routes/events.js';
@@ -63,8 +63,10 @@ export function createApp(): Express {
     res.json({ status: 'ok', phase: 8 });
   });
 
-  // Admin management API (Observatory key management). Session-cookie auth, applied
-  // inside the router — deliberately NOT behind the /v1 project-key chain.
+  // Admin management API (Observatory key management). Per-IP rate-limited; session-
+  // cookie auth + CSRF applied inside the router — deliberately NOT behind the /v1
+  // project-key chain.
+  app.use('/admin', adminRateLimitMiddleware);
   app.use('/admin', adminRouter);
 
   // All /v1/* routes require a valid X-Api-Key and are rate-limited per key.

@@ -11,6 +11,7 @@ import {
   SESSION_MAX_AGE_MS,
 } from '../admin/session.js';
 import { requireAdmin } from '../admin/middleware.js';
+import { issueCsrfToken, clearCsrfToken, requireCsrf } from '../admin/csrf.js';
 
 export const adminRouter: IRouter = Router();
 
@@ -72,17 +73,20 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
   const token = await createSession(user.id);
   await db`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
   res.cookie(SESSION_COOKIE, token, cookieOptions);
+  issueCsrfToken(res); // double-submit token for subsequent mutations
   res.json({ email });
 });
 
-adminRouter.post('/logout', async (req: Request, res: Response): Promise<void> => {
+adminRouter.post('/logout', requireCsrf, async (req: Request, res: Response): Promise<void> => {
   const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
   if (token) await deleteSession(token);
   res.clearCookie(SESSION_COOKIE, { ...cookieOptions, maxAge: undefined });
+  clearCsrfToken(res);
   res.json({ ok: true });
 });
 
-// Everything below requires a valid admin session.
+// Everything below requires a valid admin session. Mutating routes additionally
+// require the CSRF token (GETs don't need it).
 adminRouter.use(requireAdmin);
 
 adminRouter.get('/me', (req: Request, res: Response): void => {
@@ -100,7 +104,7 @@ adminRouter.get('/projects', async (_req: Request, res: Response): Promise<void>
 
 const CreateProjectSchema = z.object({ name: z.string().trim().min(1).max(120) });
 
-adminRouter.post('/projects', async (req: Request, res: Response): Promise<void> => {
+adminRouter.post('/projects', requireCsrf, async (req: Request, res: Response): Promise<void> => {
   const parsed = CreateProjectSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid payload' });
@@ -118,7 +122,7 @@ adminRouter.post('/projects', async (req: Request, res: Response): Promise<void>
   res.status(201).json({ project, apiKey });
 });
 
-adminRouter.post('/projects/:id/rotate', async (req: Request, res: Response): Promise<void> => {
+adminRouter.post('/projects/:id/rotate', requireCsrf, async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id;
   if (!id) {
     res.status(400).json({ error: 'Missing project id' });
@@ -142,7 +146,7 @@ adminRouter.post('/projects/:id/rotate', async (req: Request, res: Response): Pr
   res.json({ apiKey });
 });
 
-adminRouter.delete('/projects/:id', async (req: Request, res: Response): Promise<void> => {
+adminRouter.delete('/projects/:id', requireCsrf, async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id;
   if (!id) {
     res.status(400).json({ error: 'Missing project id' });
