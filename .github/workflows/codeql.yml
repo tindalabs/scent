@@ -37,9 +37,9 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          # security-and-quality is the broadest pack; the extra coverage is
-          # worth the extra noise for a project this size.
-          queries: security-and-quality
+          # Query pack (security-and-quality) + the single scoped paths-ignore for
+          # the API-key hash false positive live in the config file.
+          config-file: ./.github/codeql/codeql-config.yml
 
       # JS/TS needs no build — CodeQL analyzes the source directly.
       - name: Perform CodeQL Analysis
