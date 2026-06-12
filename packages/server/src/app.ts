@@ -1,7 +1,9 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { requireApiKey } from './middleware/auth.js';
+import { adminRouter } from './routes/admin.js';
 import { eventsRouter } from './routes/events.js';
 import { identityRouter } from './routes/identity.js';
 import { identitiesRouter } from './routes/identities.js';
@@ -55,10 +57,15 @@ export function createApp(): Express {
     allowedHeaders: ['Content-Type', 'x-api-key', 'traceparent', 'tracestate', 'baggage'],
   }));
   app.use(express.json({ limit: '1mb' }));
+  app.use(cookieParser());
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', phase: 8 });
   });
+
+  // Admin management API (Observatory key management). Session-cookie auth, applied
+  // inside the router — deliberately NOT behind the /v1 project-key chain.
+  app.use('/admin', adminRouter);
 
   // All /v1/* routes require a valid X-Api-Key and are rate-limited per key.
   app.use('/v1', rateLimitMiddleware);

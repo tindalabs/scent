@@ -51,6 +51,12 @@ docker compose exec scent-server node dist/scripts/create-project.js "Production
 
 Use that key as the SDK's `apiKey`, pointing it at `https://<SCENT_DOMAIN>/v1`.
 
+Or manage keys from the Observatory: create an admin login, then use the **API Keys**
+page (create / rotate / revoke). Bootstrap the first admin with:
+```bash
+docker compose exec scent-server node dist/scripts/create-admin.js admin@example.com '<password>'
+```
+
 Verify end to end:
 ```bash
 curl -X POST https://<SCENT_DOMAIN>/v1/resolve \

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   api_key_hash TEXT UNIQUE NOT NULL,
   name         TEXT NOT NULL,
+  key_prefix   TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
