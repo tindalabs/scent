@@ -80,7 +80,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
         if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
-      - name: Build and push scent-server to registries
+      - name: Build and push scent-server to GHCR
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -89,8 +89,18 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/scent-server:latest
             ghcr.io/${{ github.repository_owner }}/scent-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push scent-server to Docker Hub
+        uses: docker/build-push-action@v5
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        with:
+          context: .
+          file: packages/server/Dockerfile
+          push: true
+          tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/scent-server:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/scent-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          skip-docker-push-step: ${{ secrets.DOCKERHUB_USERNAME == '' || secrets.DOCKERHUB_TOKEN == '' }}
