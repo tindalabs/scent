@@ -198,6 +198,18 @@ Migrations run automatically on server start. To run them standalone:
 pnpm --filter @tindalabs/scent-server migrate
 ```
 
+### Prebuilt server image
+
+The `scent-server` image is published on every release to both GitHub Container Registry and Docker Hub, tagged `latest` and with the commit SHA:
+
+```bash
+docker pull ghcr.io/tindalabs/scent-server:latest
+# or, from Docker Hub
+docker pull tindalabs/scent-server:latest
+```
+
+Pull this instead of building from source. The server is licensed under BSL-1.1 (see [License](#license)); the SDK, engine, and OTel bridge remain MIT.
+
 ### Production Docker Compose
 
 The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse proxy (nginx, Caddy, Traefik) in front of `scent-server:3000`.
