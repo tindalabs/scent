@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "license": "BSL-1.1",
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",

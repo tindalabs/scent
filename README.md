@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@tindalabs/scent-sdk.svg)](https://www.npmjs.com/package/@tindalabs/scent-sdk)
 [![CI](https://github.com/tindalabs/scent/actions/workflows/ci.yml/badge.svg)](https://github.com/tindalabs/scent/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT/BSL-1.1](https://img.shields.io/badge/License-MIT%2FBSL--1.1-yellow.svg)](README.md#license)
 [![types](https://img.shields.io/npm/types/@tindalabs/scent-sdk.svg)](https://www.npmjs.com/package/@tindalabs/scent-sdk)
 [![Live demo](https://img.shields.io/badge/live-demo-4f46e5.svg)](https://tindalabs.github.io/tindalabs.dev/)
 
@@ -289,6 +289,11 @@ The `shield.*` signals become first-class fields in the stored snapshot and are 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**Open-core licensing:**
+
+- **SDK, Engine, OTel bridge** (`@tindalabs/scent-sdk`, `@tindalabs/scent-engine`, `@tindalabs/scent-otel`) — **MIT**. Free to use, embed in apps, modify, and redistribute.
+- **Server** (`@tindalabs/scent-server`) — **Business Source License 1.1 (BSL-1.1)**. Free to self-host for non-commercial use; converts to MIT on June 12, 2031. Commercial hosting (SaaS) is restricted until the conversion date.
+
+The licensing split reflects our open-core model: the SDK and matching engine are freely embeddable in your app; self-hosters can run the server on their own infrastructure; the revenue model is the **hosted SaaS tier** (Phase 7), where we handle Postgres, Redis, worker scaling, Observatory UI, and enterprise features like SSO and audit logs.
 
 Built by [tindalabs.dev](https://tindalabs.dev).
