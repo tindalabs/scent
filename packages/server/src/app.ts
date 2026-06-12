@@ -54,7 +54,7 @@ export function createApp(): Express {
     // Explicit allowedHeaders so browsers include traceparent/tracestate in cross-origin
     // requests. Without this the W3C TraceContext headers are stripped in preflight,
     // breaking browser→server trace correlation.
-    allowedHeaders: ['Content-Type', 'x-api-key', 'traceparent', 'tracestate', 'baggage'],
+    allowedHeaders: ['Content-Type', 'x-api-key', 'x-csrf-token', 'traceparent', 'tracestate', 'baggage'],
   }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
