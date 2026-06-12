@@ -1,21 +1,76 @@
-MIT License
+Business Source License 1.1
 
-Copyright (c) 2026 Tindalabs
+Parameters
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Licensor: Tindalabs
+Licensed Work: Scent Server
+  The Licensed Work is (c) 2026 Tindalabs.
+Change Date: June 12, 2031
+Change License: MIT
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Notice
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+Business Source License 1.1
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited production
+use.
+
+Effective on the Change Date, or if you exercise a commercial right described
+below before the Change Date, on the earlier of (a) the Change Date, or (b) the
+date on which you exercise said commercial right, and continuing thereafter, the
+Licensor grants you additional rights.
+
+Prohibited Uses
+
+As of the Change Date (or such earlier date as you have exercised a commercial
+right), the Licensor prohibits you from making the Licensed Work available as a
+service or product generally available to third parties on a subscription, SaaS,
+hosted, or managed services basis.
+
+For clarity, the above does not prohibit you from:
+
+(a) Running the Licensed Work for your own benefit and not offering it to third
+parties as a service or product.
+
+(b) Offering services or products that utilize the Licensed Work in a bounded
+and intentionally limited way as part of a broader service or product offering
+not primarily designed to expose the features of the Licensed Work.
+
+(c) Modifying the Licensed Work and making it available to third parties as a
+derivative work under terms at least as permissive as this License.
+
+(d) Offering services or products that leverage the Licensed Work after the
+Change Date has occurred.
+
+Changes
+
+If you create a derivative work and make it available to third parties, you
+must make available the source code of the Licensed Work that you provided to
+third parties under a license with terms at least as permissive as this
+License.
+
+Notices
+
+You must retain, in the source code of any derivative works that you create and
+distribute, all copyright, patent, trademark, and attribution notices from the
+source code of the Licensed Work, excluding those notices that do not pertain
+to any part of the derivative works.
+
+Limitations
+
+As between Licensor and You, as of the Change Date and after, Licensor may not
+enforce rights or provisions in this License for the benefit of third parties.
+
+THIS LICENSED WORK IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+IN NO EVENT WILL LICENSOR BE LIABLE TO YOU ON ANY LEGAL THEORY (INCLUDING,
+WITHOUT LIMITATION, NEGLIGENCE) OR OTHERWISE FOR ANY SPECIAL, INCIDENTAL,
+CONSEQUENTIAL, PUNITIVE OR EXEMPLARY DAMAGES ARISING OUT OF THIS LICENSE OR THE
+USE OF THE LICENSED WORK, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY
+OF SUCH DAMAGES.

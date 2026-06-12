@@ -2,6 +2,7 @@
   "name": "@tindalabs/scent-otel",
   "version": "0.1.0",
   "description": "Scent OpenTelemetry bridge — stamp identity and risk signals onto OTel spans and correlate browser traces with the server via W3C traceparent.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
