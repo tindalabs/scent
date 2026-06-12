@@ -1,0 +1,15 @@
+# Lint config for docs/openapi.yaml (the Scent Server API contract).
+extends:
+  - recommended
+rules:
+  # The spec intentionally lists localhost (dev) and an example.com self-hosted
+  # template as servers.
+  no-server-example.com: off
+  no-empty-servers: off
+  # operationIds are useful for client codegen; add them when we wire codegen.
+  operation-operationId: off
+  # Tags don't each need a description in this small API.
+  operation-tag-defined: off
+  tag-description: off
+  # Not every operation needs a documented 4xx (e.g. /health).
+  operation-4xx-response: off

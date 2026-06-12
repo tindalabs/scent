@@ -343,7 +343,7 @@ A single demo app running both `@tindalabs/blindspot` and `@tindalabs/scent-sdk`
 - [x] `docs/concepts.md`: probabilistic identity, drift, confidence, persistence policies — explain the mental model
 - [x] `docs/signals.md`: full list of collected signals, stability class, legal basis notes for GDPR
 - [x] `docs/persistence-policies.md`: what each policy collects and why — this is your legal/DPO document
-- [x] `docs/api.md`: full REST API reference
+- [x] `docs/openapi.yaml`: full REST API reference (OpenAPI 3)
 - [x] `docs/integrations/blindspot-ux.md`: OTel bridge setup guide
 - [x] Migration guide: "Coming from FingerprintJS"
 

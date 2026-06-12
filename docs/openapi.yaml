@@ -1,0 +1,715 @@
+openapi: 3.0.3
+info:
+  title: Scent Server API
+  version: "0.1.0"
+  description: |
+    Probabilistic identity continuity & fraud-signal API.
+
+    Two surfaces:
+      - **/v1** — the data API consumed by the SDK and integrators, authenticated by a
+        project API key (`X-Api-Key`).
+      - **/admin** — the management API behind the Observatory, authenticated by an admin
+        session cookie; mutating routes also require a double-submit CSRF token.
+
+    This file is the authoritative, machine-readable contract. `docs/api.md` is a prose companion.
+  license:
+    name: BSL-1.1
+    url: https://github.com/tindalabs/scent/blob/main/packages/server/LICENSE
+
+servers:
+  - url: http://localhost:3000
+    description: Local dev (server default port)
+  - url: http://localhost:3004
+    description: Local dev (docker-compose)
+  - url: https://{host}
+    description: Self-hosted
+    variables:
+      host:
+        default: api.example.com
+
+tags:
+  - name: System
+  - name: Ingestion
+  - name: Identity
+  - name: Discovery
+  - name: Accounts
+  - name: Admin
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Liveness check (no auth)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  phase: { type: integer, example: 8 }
+
+  /v1/events:
+    post:
+      tags: [Ingestion]
+      summary: Ingest a batch of snapshots (async)
+      description: |
+        Validates and enqueues one resolution job per snapshot, returning 202 immediately.
+        Resolution (matching, drift, clustering, risk, webhooks) runs in a background worker.
+        Idempotent on `identityId` + `timestamp`.
+      security: [{ ApiKeyAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventsBatch" }
+      responses:
+        "202":
+          description: Accepted and enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: integer, example: 1 }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/resolve:
+    post:
+      tags: [Ingestion]
+      summary: Resolve a snapshot without persisting
+      description: Inline identity + confidence + risk for login-time checks. Does not write to the store.
+      security: [{ ApiKeyAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signals]
+              properties:
+                signals: { $ref: "#/components/schemas/SignalMap" }
+      responses:
+        "200":
+          description: Resolution result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolveResult" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/identities:
+    get:
+      tags: [Discovery]
+      summary: List identities (paginated)
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 100, minimum: 1 } }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [last_seen, first_seen, snapshot_count], default: last_seen }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: q, in: query, description: Filter by identity-id prefix, schema: { type: string } }
+      responses:
+        "200":
+          description: A page of identities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identities:
+                    type: array
+                    items: { $ref: "#/components/schemas/Identity" }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/identity/{id}:
+    get:
+      tags: [Identity]
+      summary: Get an identity record
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      responses:
+        "200":
+          description: Identity record (with latest risk)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdentityWithRisk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/identity/{id}/timeline:
+    get:
+      tags: [Identity]
+      summary: Drift history for an identity
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      responses:
+        "200":
+          description: Ordered drift events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drifts:
+                    type: array
+                    items: { $ref: "#/components/schemas/Drift" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/identity/{id}/signals:
+    get:
+      tags: [Identity]
+      summary: Latest signal map for an identity
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      responses:
+        "200":
+          description: Most recent stored signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signals: { $ref: "#/components/schemas/SignalMap" }
+                  asOf: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/identity/{id}/link:
+    post:
+      tags: [Accounts]
+      summary: Link an identity to an application account
+      description: Upserts the link, incrementing `linkCount` on repeats.
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountId]
+              properties:
+                accountId: { type: string }
+      responses:
+        "200":
+          description: Link upserted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identityId: { type: string }
+                  accountId: { type: string }
+                  linkCount: { type: integer }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/identity/{id}/accounts:
+    get:
+      tags: [Accounts]
+      summary: Accounts linked to an identity
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      responses:
+        "200":
+          description: Linked accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identityId: { type: string }
+                  accounts:
+                    type: array
+                    items: { $ref: "#/components/schemas/AccountLink" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/account/{accountId}/identities:
+    get:
+      tags: [Accounts]
+      summary: Identities linked to an account (reverse lookup)
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Linked identities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accountId: { type: string }
+                  identities:
+                    type: array
+                    items: { $ref: "#/components/schemas/LinkedIdentity" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/accounts/clusters:
+    get:
+      tags: [Accounts]
+      summary: Identities shared across multiple accounts (fraud clusters)
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: min, in: query, description: Minimum distinct accounts, schema: { type: integer, default: 2 } }
+      responses:
+        "200":
+          description: Account clusters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  minAccounts: { type: integer }
+                  clusters:
+                    type: array
+                    items: { $ref: "#/components/schemas/AccountCluster" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/clusters/{id}:
+    get:
+      tags: [Discovery]
+      summary: Cluster detail with members
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Cluster and its member identities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cluster: { $ref: "#/components/schemas/Cluster" }
+                  members:
+                    type: array
+                    items: { $ref: "#/components/schemas/ClusterMember" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/dashboard:
+    get:
+      tags: [System]
+      summary: Aggregate metrics for the Observatory
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /admin/login:
+    post:
+      tags: [Admin]
+      summary: Admin login
+      description: On success sets the `scent_admin` session cookie and the `scent_csrf` double-submit cookie.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string, format: email }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /admin/logout:
+    post:
+      tags: [Admin]
+      summary: Admin logout (revokes the session)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /admin/me:
+    get:
+      tags: [Admin]
+      summary: Current admin user
+      security: [{ AdminSession: [] }]
+      responses:
+        "200":
+          description: The signed-in admin
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string, format: email }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /admin/projects:
+    get:
+      tags: [Admin]
+      summary: List projects
+      security: [{ AdminSession: [] }]
+      responses:
+        "200":
+          description: Projects (keys are never returned, only a prefix)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Admin]
+      summary: Create a project and mint its API key
+      description: The plaintext `apiKey` is returned exactly once and is not recoverable.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 120 }
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project: { $ref: "#/components/schemas/Project" }
+                  apiKey: { type: string, description: Shown once. }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /admin/projects/{id}/rotate:
+    post:
+      tags: [Admin]
+      summary: Rotate a project's API key
+      description: Mints a new key (returned once) and invalidates the old one immediately.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: New key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKey: { type: string, description: Shown once. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/projects/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete a project (cascades its data)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { type: object, properties: { deleted: { type: boolean } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    AdminSession:
+      type: apiKey
+      in: cookie
+      name: scent_admin
+    CsrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Must equal the `scent_csrf` cookie set at login (double-submit).
+
+  parameters:
+    IdentityId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Invalid payload
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    CsrfError:
+      description: Invalid or missing CSRF token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        details:
+          type: array
+          items: { type: object }
+          description: Present on validation errors (Zod issues).
+
+    SignalMap:
+      type: object
+      description: Browser signals collected by the SDK; values are string/number/boolean/null.
+      additionalProperties:
+        oneOf:
+          - { type: string }
+          - { type: number }
+          - { type: boolean }
+      example:
+        canvas.2d: "a3f9c1..."
+        webgl.renderer: "ANGLE (Intel, ...)"
+        screen.width: 1920
+
+    PersistencePolicy:
+      type: string
+      enum: [conservative, balanced, aggressive, forensic]
+
+    ConfidenceBand:
+      type: string
+      enum: [high, medium, low, unknown]
+    RiskBand:
+      type: string
+      enum: [low, medium, high, critical]
+    Continuity:
+      type: string
+      enum: [confirmed, probable, uncertain, unknown]
+    DriftClassification:
+      type: string
+      enum: [minor, moderate, significant, suspicious]
+
+    Snapshot:
+      type: object
+      required: [identityId, signals, persistencePolicy, timestamp]
+      properties:
+        identityId: { type: string, format: uuid }
+        signals: { $ref: "#/components/schemas/SignalMap" }
+        persistencePolicy: { $ref: "#/components/schemas/PersistencePolicy" }
+        timestamp: { type: string, format: date-time }
+        traceparent:
+          type: string
+          description: Optional W3C Trace Context header.
+
+    EventsBatch:
+      type: object
+      required: [snapshots]
+      properties:
+        snapshots:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/Snapshot" }
+
+    RiskFlag:
+      type: object
+      properties:
+        code: { type: string }
+        label: { type: string }
+        reason: { type: string }
+        confidence: { type: number }
+
+    ResolveResult:
+      type: object
+      properties:
+        identityId:
+          type: string
+          nullable: true
+          description: Null when resolved as a brand-new identity.
+        confidence: { type: number }
+        confidenceBand: { $ref: "#/components/schemas/ConfidenceBand" }
+        continuity: { $ref: "#/components/schemas/Continuity" }
+        isNew: { type: boolean }
+        signalHash: { type: string }
+        risk:
+          type: object
+          properties:
+            score: { type: number }
+            band: { $ref: "#/components/schemas/RiskBand" }
+            flags:
+              type: array
+              items: { $ref: "#/components/schemas/RiskFlag" }
+
+    Identity:
+      type: object
+      properties:
+        id: { type: string }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+        confidence_band: { $ref: "#/components/schemas/ConfidenceBand" }
+        risk_band: { $ref: "#/components/schemas/RiskBand" }
+        snapshot_count: { type: integer }
+        cluster_id: { type: string, format: uuid, nullable: true }
+
+    IdentityWithRisk:
+      allOf:
+        - { $ref: "#/components/schemas/Identity" }
+        - type: object
+          properties:
+            riskScore: { type: number, nullable: true }
+            riskFlags:
+              type: array
+              items: { $ref: "#/components/schemas/RiskFlag" }
+
+    Drift:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
+        classification: { $ref: "#/components/schemas/DriftClassification" }
+        entropy: { type: number }
+        changed_signals: { type: array, items: { type: string } }
+        added_signals: { type: array, items: { type: string } }
+        removed_signals: { type: array, items: { type: string } }
+        before_snapshot_id: { type: string, format: uuid }
+        after_snapshot_id: { type: string, format: uuid }
+        traceparent: { type: string, nullable: true }
+
+    Cluster:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        reason: { type: string }
+
+    ClusterMember:
+      type: object
+      properties:
+        id: { type: string }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+        confidence_band: { $ref: "#/components/schemas/ConfidenceBand" }
+        risk_band: { $ref: "#/components/schemas/RiskBand" }
+        snapshot_count: { type: integer }
+        merge_confidence: { type: number, nullable: true }
+        merge_reason: { type: string, nullable: true }
+
+    AccountLink:
+      type: object
+      properties:
+        account_id: { type: string }
+        first_linked_at: { type: string, format: date-time }
+        last_linked_at: { type: string, format: date-time }
+        link_count: { type: integer }
+
+    LinkedIdentity:
+      type: object
+      properties:
+        identity_id: { type: string }
+        first_linked_at: { type: string, format: date-time }
+        last_linked_at: { type: string, format: date-time }
+        link_count: { type: integer }
+        confidence_band: { $ref: "#/components/schemas/ConfidenceBand" }
+        risk_band: { $ref: "#/components/schemas/RiskBand" }
+        snapshot_count: { type: integer }
+
+    AccountCluster:
+      type: object
+      properties:
+        identity_id: { type: string }
+        account_count: { type: integer }
+        total_links: { type: integer }
+        first_linked_at: { type: string, format: date-time }
+        last_linked_at: { type: string, format: date-time }
+        risk_band: { $ref: "#/components/schemas/RiskBand" }
+        confidence_band: { $ref: "#/components/schemas/ConfidenceBand" }
+        account_ids: { type: array, items: { type: string } }
+
+    Dashboard:
+      type: object
+      properties:
+        totalIdentities: { type: integer }
+        newToday: { type: integer }
+        highRiskCount: { type: integer }
+        avgConfidenceBand: { type: string }
+        riskDistribution:
+          type: array
+          items:
+            type: object
+            properties:
+              band: { type: string }
+              count: { type: integer }
+        driftRateTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string }
+              count: { type: integer }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        key_prefix: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }

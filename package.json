@@ -7,11 +7,13 @@
     "test": "turbo test",
     "type-check": "turbo type-check",
     "lint": "turbo lint",
+    "openapi:lint": "redocly lint docs/openapi.yaml",
     "bench": "pnpm --filter @tindalabs/scent-bench bench",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md}\" --ignore-path .gitignore"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
+    "@redocly/cli": "^2.32.2",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
     "eslint": "^10.4.1",
