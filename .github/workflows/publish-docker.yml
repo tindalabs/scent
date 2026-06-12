@@ -60,15 +60,3 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/scent-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # Keep the Docker Hub repo page (short + full description) in sync with the
-      # repo. The category is not settable via API — pick it once in the Docker Hub UI.
-      - name: Sync Docker Hub description
-        if: ${{ env.DOCKERHUB_USERNAME != '' }}
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.DOCKERHUB_USERNAME }}/scent-server
-          short-description: "Probabilistic identity continuity & fraud-signal server - drift-tolerant, explainable, self-hostable."
-          readme-filepath: ./packages/server/DOCKERHUB.md
