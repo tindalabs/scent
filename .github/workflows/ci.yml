@@ -59,6 +59,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Lint OpenAPI spec
+        run: pnpm openapi:lint
+
       - name: Type check
         run: pnpm type-check
 
