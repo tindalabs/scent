@@ -210,9 +210,19 @@ docker pull tindalabs/scent-server:latest
 
 Pull this instead of building from source. The server is licensed under BSL-1.1 (see [License](#license)); the SDK, engine, and OTel bridge remain MIT.
 
-### Production Docker Compose
+### Production deployment
 
-The included `docker-compose.yml` is production-ready. For HTTPS, put a reverse proxy (nginx, Caddy, Traefik) in front of `scent-server:3000`.
+For a single-VPS production stack — server + async-ingest worker + Postgres + Redis + automatic HTTPS (Caddy), using the prebuilt image — see [`deploy/`](deploy/):
+
+```bash
+cd deploy
+cp .env.example .env   # set SCENT_DOMAIN, ACME_EMAIL, POSTGRES_PASSWORD
+docker compose pull && docker compose up -d
+```
+
+Full runbook (DNS, minting an API key, updates, backups) in [`deploy/README.md`](deploy/README.md). Sized for a ~€4/mo VPS such as a Hetzner CX22.
+
+The repo-root `docker-compose.yml` is the **local dev** stack instead — it builds from source and bundles the Observatory UI plus a Grafana Tempo observability stack and a demo API key.
 
 ---
 

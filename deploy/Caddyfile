@@ -1,0 +1,10 @@
+# Caddy auto-provisions and renews a Let's Encrypt TLS cert for SCENT_DOMAIN and
+# reverse-proxies to the server. Requires SCENT_DOMAIN's DNS A/AAAA record to point
+# at this host before first start (ACME HTTP-01 challenge needs to reach :80).
+{
+	email {$ACME_EMAIL}
+}
+
+{$SCENT_DOMAIN} {
+	reverse_proxy scent-server:3000
+}
