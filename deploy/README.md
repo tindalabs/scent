@@ -88,6 +88,25 @@ persistence is enabled here). Combined with the `event_id` dedupe in the worker,
 that gives at-least-once processing across restarts. For stronger guarantees a
 Postgres outbox would be the next step.
 
+## Optional: GeoIP (impossible-travel detection)
+
+The `impossible_transition` risk flag — IP geolocation moving faster than a flight
+between two observations — needs a City-level GeoIP database. It's off by default.
+
+To enable it: obtain a `.mmdb` with coordinates (MaxMind GeoLite2-City, free with an
+account; or DB-IP City Lite), mount it into **both** `scent-server` and `scent-worker`
+(the worker runs resolution/risk), and set `GEOIP_DB_PATH` to its in-container path —
+e.g. add to each service in `docker-compose.yml`:
+
+```yaml
+    volumes:
+      - ./GeoLite2-City.mmdb:/data/GeoLite2-City.mmdb:ro
+    environment:
+      GEOIP_DB_PATH: /data/GeoLite2-City.mmdb
+```
+
+Without it, lookups return null and the signal is simply not emitted (no errors).
+
 ## What's intentionally not here
 
 - **Observatory UI** — omitted to keep the box lean; add it behind Caddy later if

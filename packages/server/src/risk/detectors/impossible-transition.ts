@@ -1,66 +1,63 @@
 import type { RiskFlag } from '@tindalabs/scent-engine';
 import type { Sql } from 'postgres';
+import { lookupCoords, haversineKm, type Coords } from '../geoip.js';
 
-// Geographic impossibility heuristic: compare the client IP of the current
-// snapshot against the most recent prior snapshot for this identity.
-// Without a geolocation API, we use IP /8 prefix as a rough regional proxy —
-// different first octets across IPv4 space correlate strongly with different
-// continents/regions for public IP ranges.
+// "Impossible travel": the client IP's geographic location moved between two
+// consecutive observations faster than is physically plausible. We geolocate both
+// IPs (GeoIP), measure the great-circle distance, and divide by the elapsed time.
 //
-// The check only fires when:
-//   - Both IPs are public IPv4 addresses
-//   - The /8 subnets differ (different "regions")
-//   - The time between observations is shorter than plausible travel time (2 hours)
+// Two guards keep this high-signal:
+//   - MIN_DISTANCE_KM: below this, GeoIP city-level imprecision (tens of km) and
+//     normal intra-region movement dominate — not worth flagging.
+//   - MAX_PLAUSIBLE_SPEED_KMH: above commercial-jet cruise (~900 km/h) plus buffer.
+//
+// GeoIP is optional: if it's disabled or either IP can't be located (private,
+// reserved, IPv6-local, or simply absent from the DB), no signal is emitted.
+const MIN_DISTANCE_KM = 500;
+const MAX_PLAUSIBLE_SPEED_KMH = 1000;
+const MIN_GAP_HOURS = 1 / 60; // floor (1 min) so equal/clock-skewed timestamps don't divide by zero
+
 export async function detectImpossibleTransition(
   sql: Sql,
   identityId: string,
   currentIp: string | null,
   currentTimestamp: string,
+  // Injectable for tests; defaults to the real GeoIP lookup.
+  resolveCoords: (ip: string) => Promise<Coords | null> = lookupCoords,
 ): Promise<RiskFlag | null> {
-  if (!currentIp || !isPublicIpv4(currentIp)) return null;
+  if (!currentIp) return null;
+  const current = await resolveCoords(currentIp);
+  if (!current) return null;
 
   const prev = await sql<{ client_ip: string | null; timestamp: Date }[]>`
     SELECT client_ip, timestamp
     FROM snapshots
-    WHERE identity_id = ${identityId}
-      AND client_ip IS NOT NULL
+    WHERE identity_id = ${identityId} AND client_ip IS NOT NULL
     ORDER BY timestamp DESC
     LIMIT 1
   `;
+  const prevIp = prev[0]?.client_ip;
+  if (!prevIp) return null;
+  const previous = await resolveCoords(prevIp);
+  if (!previous) return null;
 
-  if (!prev[0]?.client_ip || !isPublicIpv4(prev[0].client_ip)) return null;
+  const distanceKm = haversineKm(current, previous);
+  if (distanceKm < MIN_DISTANCE_KM) return null;
 
-  const currentOctet = firstOctet(currentIp);
-  const prevOctet = firstOctet(prev[0].client_ip);
+  const elapsedHours = Math.max(
+    MIN_GAP_HOURS,
+    (new Date(currentTimestamp).getTime() - prev[0]!.timestamp.getTime()) / 3_600_000,
+  );
+  const speedKmh = distanceKm / elapsedHours;
+  if (speedKmh <= MAX_PLAUSIBLE_SPEED_KMH) return null;
 
-  if (currentOctet === prevOctet) return null;
-
-  const gapMs = new Date(currentTimestamp).getTime() - new Date(prev[0].timestamp).getTime();
-  const gapHours = gapMs / (1000 * 60 * 60);
-
-  // Minimum plausible travel time between different /8 regions: 2 hours.
-  if (gapHours >= 2) return null;
-
-  const confidence = Math.min(0.85, 0.55 + Math.max(0, (2 - gapHours) * 0.15));
+  // Confidence grows with how far over the plausible-speed line we are.
+  const confidence = Math.min(0.95, 0.6 + (speedKmh / MAX_PLAUSIBLE_SPEED_KMH - 1) * 0.1);
 
   return {
     code: 'impossible_transition',
     label: 'Impossible geographic transition',
-    reason: `IP changed from /${prevOctet}.x.x.x to /${currentOctet}.x.x.x in ${gapHours.toFixed(1)} hours`,
+    reason: `~${Math.round(distanceKm)} km in ${elapsedHours.toFixed(1)} h (~${Math.round(speedKmh)} km/h implied), exceeding plausible travel speed`,
     confidence,
   };
-}
-
-function isPublicIpv4(ip: string): boolean {
-  // Very rough check: IPv4, not RFC-1918 private, not loopback
-  const parts = ip.split('.');
-  if (parts.length !== 4) return false;
-  const first = Number(parts[0]);
-  if (isNaN(first)) return false;
-  if (first === 10 || first === 127 || first === 172 || first === 192) return false;
-  return true;
-}
-
-function firstOctet(ip: string): number {
-  return Number(ip.split('.')[0]);
 }
