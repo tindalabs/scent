@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import { App } from './App.js';
 import { AuthProvider } from './contexts/AuthContext.js';
+import { ProjectProvider } from './contexts/ProjectContext.js';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +24,9 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ProjectProvider>
+            <App />
+          </ProjectProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

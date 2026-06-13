@@ -14,6 +14,7 @@ consumer-visible change to the published packages, so no version bump is
 warranted yet; they roll into the next release.
 
 ### Internal
+- **Per-project data viewing in the Observatory**: the `/v1` read routes now accept an admin session + `X-Project-Id` header (GET only) alongside the project API key (`requireProjectRead`), and the Observatory gained a sidebar project switcher that scopes every data page to the selected project. The build-time `VITE_API_KEY` is removed — one admin login can browse any project's data. Ingest (`/v1/events`) and synchronous resolve stay strictly key-gated; a session can never reach a write path.
 - **Structured logging** ([#19]): replaced ad-hoc `console.*` in the server with a `pino` logger (JSON to stdout, level via `LOG_LEVEL`). Imported after the OTel SDK starts so its pino instrumentation injects `trace_id`/`span_id` into log lines.
 - **SDK test coverage** ([#20]): the persistence layers (cookie / localStorage / sessionStorage / IndexedDB via `fake-indexeddb`, incl. cross-layer "storage amnesia" resurrection) and previously-untested collectors, with privacy invariants (WebRTC opt-in, no raw UA, no PII).
 - **Server integration tests** ([#21]): `events.ts` identity resolution driven end-to-end with supertest, behind a new `createApp()` factory (`index.ts` is now a thin bootstrap). CI gained **PostgreSQL + Redis service containers**; the suite is gated on `DATABASE_URL` (runs in CI, skips locally without a DB).

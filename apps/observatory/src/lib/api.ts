@@ -1,13 +1,30 @@
 const API_BASE = (import.meta.env['VITE_API_BASE'] as string | undefined) ?? 'http://localhost:3000';
-const API_KEY = (import.meta.env['VITE_API_KEY'] as string | undefined) ?? '';
 
-function headers(): HeadersInit {
-  return { 'Content-Type': 'application/json', 'x-api-key': API_KEY };
+// The data API (/v1 reads) is scoped by the project the operator has selected in the
+// Observatory, sent as X-Project-Id and authorized by the admin session cookie — no
+// build-time key. ProjectContext owns the selection and pushes it here via
+// setActiveProjectId; get() reads it the way an HTTP client reads a default header.
+let activeProjectId: string | null = null;
+
+export function setActiveProjectId(id: string | null): void {
+  activeProjectId = id;
+}
+
+export function getActiveProjectId(): string | null {
+  return activeProjectId;
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: headers() });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
+  if (!activeProjectId) {
+    // RequireProject gates the data pages so this shouldn't fire; guard anyway so a
+    // stray query surfaces a clear error instead of a confusing 400 from the server.
+    throw new ApiError(0, 'No project selected');
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-Project-Id': activeProjectId },
+  });
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText} — ${path}`);
   return res.json() as Promise<T>;
 }
 

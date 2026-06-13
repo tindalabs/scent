@@ -11,6 +11,7 @@ import {
 import { Button } from '../components/ui/button.js';
 import { Skeleton } from '../components/ui/skeleton.js';
 import { formatDate } from '../lib/utils.js';
+import { useProjects } from '../contexts/ProjectContext.js';
 
 // Shown once after create/rotate — the plaintext key is not recoverable afterwards.
 function RevealedKey({ label, value, onDismiss }: { label: string; value: string; onDismiss: () => void }): React.ReactElement {
@@ -44,13 +45,18 @@ function RevealedKey({ label, value, onDismiss }: { label: string; value: string
 
 export function Settings(): React.ReactElement {
   const qc = useQueryClient();
+  // Keep the sidebar project switcher in sync when projects are created/removed here.
+  const { refetch: refetchProjects } = useProjects();
   const { data, isLoading } = useQuery({ queryKey: ['admin-projects'], queryFn: listProjects });
 
   const [name, setName] = useState('');
   const [revealed, setRevealed] = useState<{ label: string; key: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const invalidate = (): Promise<void> => qc.invalidateQueries({ queryKey: ['admin-projects'] });
+  const invalidate = async (): Promise<void> => {
+    await qc.invalidateQueries({ queryKey: ['admin-projects'] });
+    await refetchProjects();
+  };
   const fail = (e: unknown): void => setError(e instanceof Error ? e.message : 'Something went wrong');
 
   const create = useMutation({

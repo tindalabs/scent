@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { rateLimitMiddleware, adminRateLimitMiddleware } from './middleware/rate-limit.js';
 import { requireApiKey } from './middleware/auth.js';
+import { requireProjectRead } from './middleware/project-access.js';
 import { adminRouter } from './routes/admin.js';
 import { eventsRouter } from './routes/events.js';
 import { identityRouter } from './routes/identity.js';
@@ -54,7 +55,7 @@ export function createApp(): Express {
     // Explicit allowedHeaders so browsers include traceparent/tracestate in cross-origin
     // requests. Without this the W3C TraceContext headers are stripped in preflight,
     // breaking browser→server trace correlation.
-    allowedHeaders: ['Content-Type', 'x-api-key', 'x-csrf-token', 'traceparent', 'tracestate', 'baggage'],
+    allowedHeaders: ['Content-Type', 'x-api-key', 'x-project-id', 'x-csrf-token', 'traceparent', 'tracestate', 'baggage'],
   }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
@@ -69,17 +70,20 @@ export function createApp(): Express {
   app.use('/admin', adminRateLimitMiddleware);
   app.use('/admin', adminRouter);
 
-  // All /v1/* routes require a valid X-Api-Key and are rate-limited per key.
-  app.use('/v1', rateLimitMiddleware);
-  app.use('/v1', requireApiKey);
-  app.use('/v1/events', eventsRouter);
-  app.use('/v1/identity', identityRouter);
-  app.use('/v1/identities', identitiesRouter);
-  app.use('/v1/resolve', resolveRouter);
-  app.use('/v1/dashboard', dashboardRouter);
-  app.use('/v1/clusters', clustersRouter);
-  app.use('/v1/account', accountRouter);
-  app.use('/v1/accounts', accountsRouter);
+  // Ingest and synchronous resolve are write paths: strictly project-key gated and
+  // rate-limited per key. An admin session must never reach them.
+  app.use('/v1/events', rateLimitMiddleware, requireApiKey, eventsRouter);
+  app.use('/v1/resolve', rateLimitMiddleware, requireApiKey, resolveRouter);
+
+  // Read routes accept EITHER a project key OR an admin session + X-Project-Id (GET
+  // only), so the Observatory can view any project without a baked-in key.
+  // requireProjectRead handles its own rate limiting per branch and sets req.projectId.
+  app.use('/v1/identity', requireProjectRead, identityRouter);
+  app.use('/v1/identities', requireProjectRead, identitiesRouter);
+  app.use('/v1/dashboard', requireProjectRead, dashboardRouter);
+  app.use('/v1/clusters', requireProjectRead, clustersRouter);
+  app.use('/v1/account', requireProjectRead, accountRouter);
+  app.use('/v1/accounts', requireProjectRead, accountsRouter);
 
   return app;
 }

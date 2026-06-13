@@ -57,6 +57,10 @@ page (create / rotate / revoke). Bootstrap the first admin with:
 docker compose exec scent-server node dist/scripts/create-admin.js admin@example.com '<password>'
 ```
 
+The Observatory has no baked-in API key. After logging in, the project switcher in the
+sidebar scopes every data page to the selected project — your admin session authorizes
+the read, so one login can view all projects.
+
 Verify end to end:
 ```bash
 curl -X POST https://<SCENT_DOMAIN>/v1/resolve \

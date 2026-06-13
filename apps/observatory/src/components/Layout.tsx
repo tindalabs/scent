@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, GitBranch, Network, KeyRound, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { useAuth } from '../contexts/AuthContext.js';
+import { useProjects } from '../contexts/ProjectContext.js';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -12,6 +13,7 @@ const nav = [
 
 export function Layout(): React.ReactElement {
   const { user, logout } = useAuth();
+  const { projects, activeId, setActive } = useProjects();
   const navigate = useNavigate();
 
   async function onLogout(): Promise<void> {
@@ -27,6 +29,27 @@ export function Layout(): React.ReactElement {
             Scent <span className="text-muted-foreground font-normal">Observatory</span>
           </span>
         </div>
+        {/* Project switcher — scopes every data page to the chosen project. Hidden
+            until at least one project exists (operator is sent to API keys first). */}
+        {projects.length > 0 && (
+          <div className="px-3 pt-3">
+            <label htmlFor="project-switcher" className="sr-only">
+              Active project
+            </label>
+            <select
+              id="project-switcher"
+              value={activeId ?? ''}
+              onChange={(e) => setActive(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <nav className="flex-1 p-3 space-y-1">
           {nav.map(({ to, label, icon: Icon, end }) => (
             <NavLink

@@ -108,8 +108,9 @@ paths:
     get:
       tags: [Discovery]
       summary: List identities (paginated)
-      security: [{ ApiKeyAuth: [] }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
       parameters:
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
         - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 100, minimum: 1 } }
         - name: sort
@@ -137,8 +138,10 @@ paths:
     get:
       tags: [Identity]
       summary: Get an identity record
-      security: [{ ApiKeyAuth: [] }]
-      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Identity record (with latest risk)
@@ -152,8 +155,10 @@ paths:
     get:
       tags: [Identity]
       summary: Drift history for an identity
-      security: [{ ApiKeyAuth: [] }]
-      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Ordered drift events
@@ -171,8 +176,10 @@ paths:
     get:
       tags: [Identity]
       summary: Latest signal map for an identity
-      security: [{ ApiKeyAuth: [] }]
-      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Most recent stored signals
@@ -221,8 +228,10 @@ paths:
     get:
       tags: [Accounts]
       summary: Accounts linked to an identity
-      security: [{ ApiKeyAuth: [] }]
-      parameters: [{ $ref: "#/components/parameters/IdentityId" }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Linked accounts
@@ -241,9 +250,10 @@ paths:
     get:
       tags: [Accounts]
       summary: Identities linked to an account (reverse lookup)
-      security: [{ ApiKeyAuth: [] }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
       parameters:
         - { name: accountId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Linked identities
@@ -262,8 +272,9 @@ paths:
     get:
       tags: [Accounts]
       summary: Identities shared across multiple accounts (fraud clusters)
-      security: [{ ApiKeyAuth: [] }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
       parameters:
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
         - { name: min, in: query, description: Minimum distinct accounts, schema: { type: integer, default: 2 } }
       responses:
         "200":
@@ -283,9 +294,10 @@ paths:
     get:
       tags: [Discovery]
       summary: Cluster detail with members
-      security: [{ ApiKeyAuth: [] }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Cluster and its member identities
@@ -305,7 +317,9 @@ paths:
     get:
       tags: [System]
       summary: Aggregate metrics for the Observatory
-      security: [{ ApiKeyAuth: [] }]
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
       responses:
         "200":
           description: Dashboard summary
@@ -463,6 +477,10 @@ components:
       type: apiKey
       in: cookie
       name: scent_admin
+      description: >-
+        Opaque session cookie set by POST /admin/login. Authorizes the /admin API and,
+        paired with an X-Project-Id header, read-only access to that project's /v1 data
+        (GET only — a session can never reach an ingest/write path).
     CsrfToken:
       type: apiKey
       in: header
@@ -479,6 +497,16 @@ components:
       name: id
       in: path
       required: true
+      schema: { type: string, format: uuid }
+    ProjectIdHeader:
+      name: X-Project-Id
+      in: header
+      required: false
+      description: >-
+        Project to scope the query to. Required when authenticating with an admin
+        session (AdminSession) — this is how the Observatory views a project without a
+        baked-in key. Ignored with ApiKeyAuth, where the key already determines the
+        project.
       schema: { type: string, format: uuid }
 
   responses:

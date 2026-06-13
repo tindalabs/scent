@@ -7,6 +7,20 @@ import { hashApiKey } from './api-key.js';
 const WINDOW_SECONDS = 60;
 const MAX_REQUESTS = 1000;
 
+// Shared fixed-window primitive: increments the per-window bucket and returns the
+// running count. The caller picks the bucket prefix and the limit, so the same
+// mechanism backs per-key, per-IP, and per-admin-user limiting. The window suffix is
+// appended here so callers pass a stable bucket (e.g. `rl:<keyhash>`), not the window.
+export async function incrFixedWindow(bucket: string, windowSeconds = WINDOW_SECONDS): Promise<number> {
+  const window = Math.floor(Date.now() / (windowSeconds * 1000));
+  const key = `${bucket}:${window}`;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, windowSeconds);
+  }
+  return count;
+}
+
 export async function rateLimitMiddleware(
   req: Request,
   res: Response,
@@ -19,13 +33,7 @@ export async function rateLimitMiddleware(
   }
 
   // Bucket on the key hash, not the plaintext, so raw keys never appear in Redis.
-  const window = Math.floor(Date.now() / (WINDOW_SECONDS * 1000));
-  const key = `rl:${hashApiKey(apiKey)}:${window}`;
-
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, WINDOW_SECONDS);
-  }
+  const count = await incrFixedWindow(`rl:${hashApiKey(apiKey)}`);
 
   res.setHeader('X-RateLimit-Limit', MAX_REQUESTS);
   res.setHeader('X-RateLimit-Remaining', Math.max(0, MAX_REQUESTS - count));
@@ -49,13 +57,7 @@ export async function adminRateLimitMiddleware(
   next: NextFunction,
 ): Promise<void> {
   const ip = req.ip ?? 'unknown';
-  const window = Math.floor(Date.now() / (WINDOW_SECONDS * 1000));
-  const key = `rl:admin:${ip}:${window}`;
-
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, WINDOW_SECONDS);
-  }
+  const count = await incrFixedWindow(`rl:admin:${ip}`);
 
   if (count > ADMIN_MAX_REQUESTS) {
     res.status(429).json({ error: 'Rate limit exceeded' });
