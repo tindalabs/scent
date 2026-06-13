@@ -364,9 +364,9 @@ A single demo app running both `@tindalabs/blindspot` and `@tindalabs/scent-sdk`
 
 ### Cloud infrastructure
 
-- [ ] Multi-tenant architecture: all data scoped by project API key, full tenant isolation at DB level
+- [x] Multi-tenant architecture: all data scoped by project (every table FK'd to `projects` with `ON DELETE CASCADE`; API key → project_id resolved in auth). API keys are hashed at rest (SHA-256).
 - [ ] Usage metering: count identity resolutions per billing period
-- [ ] API key management UI (create, rotate, revoke)
+- [x] API key management UI (create, rotate, revoke) — Observatory **API Keys** page behind multi-user admin auth (bcrypt, server-side sessions, CSRF, per-IP rate limit); rotate/revoke bust the Redis auth cache immediately
 - [ ] Billing integration: Stripe (usage-based, metered billing)
 
 ### Pricing tiers
@@ -465,29 +465,43 @@ Full report: `c-level/reports/scent_2026-05-19.md`
 ### Next Sprint (1–4 weeks)
 
 - [x] Implement Phase 8: `scent.identify(accountId)` + `POST /v1/identity/:id/link` + Observatory account clusters view — this is job-to-be-done #1 for the primary ICP
-- [ ] Add compound PostgreSQL index on `snapshots(project_id, identity_id, timestamp DESC)` and benchmark candidate scan at 100k identities — the O(n) scan in `routes/events.ts:95–107` is the primary scaling blocker
-- [ ] Cache project API key lookups in Redis (same pattern as rate limiter) — eliminates per-request DB round-trip on every `/v1/*` route
-- [ ] Add test coverage for `routes/events.ts` (identity resolution, deduplication, cluster linking), `sdk/persistence/*`, and `sdk/collectors/*` — target 60%+ on probabilistic core
-- [ ] Add `pino` structured JSON logging to Express server — replace `console.log`/`console.error`; incidents are not debuggable without queryable logs
-- [ ] Add `CHANGELOG.md` and tag `0.1.0`
-- [ ] Add `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md`
+- [x] Add compound PostgreSQL index on `snapshots(project_id, identity_id, timestamp DESC)` (migration `005`) — and the O(n) scan itself was eliminated: SimHash blocking index (migration `006`, `bit_count` Hamming prefilter) replaced the per-request linear scan, and async ingest (BullMQ queue + worker) moved resolution off the request path entirely
+- [x] Cache project API key lookups in Redis (`middleware/auth.ts`, keyed on the SHA-256 hash) — eliminates the per-request DB round-trip on every `/v1/*` route
+- [x] Server / probabilistic-core test coverage — ~88% statements (events resolution/dedup/cluster-linking, `/v1/resolve`, read routes, all risk detectors); see `pnpm --filter @tindalabs/scent-server test:coverage`
+- [ ] SDK test coverage still pending: `sdk/persistence/*` and `sdk/collectors/*` (server core is done above)
+- [x] Add `pino` structured JSON logging to Express server (`logger.ts`)
+- [x] Add `CHANGELOG.md` and tag `0.1.0`
+- [x] Add `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md`
 - [ ] Add `# DO NOT USE IN PRODUCTION without configuring CORS` comment to `infra/otel-collector.yaml` if applicable
 
 ### Strategic (1–3 months)
 
-- [ ] **Simultaneous launch**: make GitHub repo public + publish npm packages (`@tindalabs/scent-sdk`, `@tindalabs/scent-engine`) + Show HN post on the same day — these three actions must happen together to maximize momentum
+- [~] **Simultaneous launch**: GitHub repo is public and npm packages are published (`scent-sdk`/`-engine`/`-otel` @ `0.1.0`, trusted publishing). **Show HN post still pending** — the launch-day momentum play is not yet fired.
 - [ ] Launch `tindalabs.dev` landing page — `docs/tindalabs-landing-page-spec.md` has all the copy; HN traffic needs somewhere to land
 - [ ] Write and publish "Why FingerprintJS free tier isn't enough — and what we built instead" blog post on Dev.to and Medium (the migration guide is already written; this is the SEO play)
 - [ ] Implement usage metering (`resolution_count` increment per project per billing period) — the revenue meter; unblocks Phase 7 Stripe integration
-- [ ] Implement Phase 7 SaaS: Stripe usage-based billing, API key management UI, billing dashboard
+- [~] Implement Phase 7 SaaS: **API key management UI is done** (admin auth — multi-user accounts, sessions, CSRF — + Observatory create/rotate/revoke); Stripe usage-based billing + billing dashboard still pending (gated on usage metering above)
 - [x] Publish accuracy benchmarks comparing Scent vs. FingerprintJS OSS vs. ThumbmarkJS ✅ — added `bench/` (`@tindalabs/scent-bench`, run via `pnpm bench`): a reproducible, seeded harness that holds signal *collection* constant and varies only the matcher, driving the **real** `@tindalabs/scent-engine`. Models the deterministic libs faithfully (re-identify iff the hashed component set is byte-for-byte identical). Headline ([`bench/RESULTS.md`](bench/RESULTS.md)): **weighted recall FingerprintJS 45% / ThumbmarkJS 55% / Scent 100%** under drift; deterministic IDs collapse to 0% the instant any hashed component changes (browser update, anti-fingerprinting, VPN/timezone, new monitor — Thumbmark survives only the monitor case by dropping screen geometry). Crucially it also reports Scent's **confidence gradient** (mean 1.00→0.80; "confirmed" share drops to 57.9% on browser updates, 15.8% on anti-fingerprinting) and a **false-merge counter-metric** — so it reads as measurement, not a brochure. Methodology + limits documented in `bench/README.md`.
-- [ ] Publish `tindalabs/scent-server` Docker image to Docker Hub so self-hosters can `docker pull` without building from source
+- [x] Publish `tindalabs/scent-server` Docker image so self-hosters can `docker pull` — auto-published on every main push to **both GHCR (`ghcr.io/tindalabs/scent-server`) and Docker Hub (`tindalabs/scent-server`)** via `.github/workflows/publish-docker.yml`
 - [ ] Reach out to 10–15 mid-market SaaS founders/CTOs who post publicly about fraud on Twitter/LinkedIn (primary community seeding)
 - [ ] **Calibrate risk confidences against labeled outcomes** — every detector's `confidence` and the per-flag weights (`risk/detectors/*`, `engine/risk/automation.ts`) are currently *expert-tuned constants*, not fit to data. The combiner is principled (noisy-OR in `engine/risk/scorer.ts`); the inputs are guesses. Once there's a labeled outcome stream (customer fraud/chargeback/ban feedback, or manual review labels), fit per-detector confidences and recalibrate the band thresholds (e.g. isotonic/Platt scaling) so a "0.7" means ~70% empirical fraud probability. Needs labeled data → post-launch. Until then, treat scores as ordinal, not calibrated probabilities. Add reliability-diagram tracking to measure calibration drift over time.
 
 ### Watch List
 
-- **O(n) candidate scan at scale** — set a Grafana alert on `scent.identity_resolution` span duration > 500ms; if a project reaches 50k identities before the indexing fix, resolution latency will degrade under load
+- **O(n) candidate scan at scale** — ✅ RESOLVED: SimHash blocking index (`bit_count` Hamming prefilter, migration `006`) + async ingest worker removed the per-request linear scan. Still worth a Grafana alert on `scent.identity_resolution` span duration > 500ms as a regression guard.
 - **FingerprintJS Pro pricing changes** — Fingerprint.com is under competitive pressure from ThumbmarkJS and browser anti-fingerprinting; monitor their pricing page for moves below $50/month
 - **ITP/Chrome Privacy Sandbox velocity** — Apple ITP and Chrome Privacy Sandbox updates degrade individual signal stability; monitor `drift.classification: 'suspicious'` rate spike after major Safari/Chrome releases as a health signal
 - **2-person bus factor** — the probabilistic core is complex; growing community with CONTRIBUTING + `good-first-issue` tags is the mitigation
+
+### Deferred / follow-ups (2026-06-13 hardening sprint)
+
+Surfaced and consciously deferred while hardening the server for self-hosted launch
+(this sprint shipped: async ingest, SimHash blocking, hashed API keys, admin auth +
+key-management UI, Hetzner deploy stack + BSL-1.1 server license, dual-registry Docker
+images, OpenAPI spec, ~88% server coverage, GeoIP impossible-travel + anonymizer/datacenter
+signal, SimHash-Hamming coordinated-fraud detectors).
+
+- [ ] **Postgres outbox for ingest durability** — at-least-once currently relies on Redis AOF + the `event_id` dedupe in the worker. An outbox table is the more durable alternative if Redis persistence proves insufficient.
+- [ ] **Per-project data viewing via the admin session** — the Observatory's data pages still use a build-time `VITE_API_KEY` (one project). Making `/v1/*` accept an admin session + a project selector would let an admin browse any project's data after login.
+- [ ] **Admin account management** — admins are minted via the `create-admin` CLI; no self-service user-management UI, password reset, or 2FA yet. CSRF today is SameSite=Lax + double-submit token (adequate for self-hosted); revisit 2FA/CSRF-token for a hosted multi-tenant deployment.
+- **CodeQL exclusions** (`.github/codeql/codeql-config.yml`): `js/missing-rate-limiting` and `js/missing-token-validation` are excluded — they don't recognize the custom Redis limiter or double-submit CSRF (and already mis-flag the existing `/v1` limiter). Revisit if we adopt recognized libraries.
