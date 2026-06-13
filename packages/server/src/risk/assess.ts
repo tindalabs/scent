@@ -8,6 +8,7 @@ import { detectRapidReregistration } from './detectors/rapid-reregistration.js';
 import { detectImpossibleTransition } from './detectors/impossible-transition.js';
 import { detectCoordinatedBehavior } from './detectors/coordinated-behavior.js';
 import { detectCoordinatedAccounts } from './detectors/coordinated-accounts.js';
+import { detectAnonymizerIp } from './detectors/anonymizer-ip.js';
 
 const tracer = trace.getTracer('scent-server');
 
@@ -48,6 +49,7 @@ export async function assessRisk(sql: Sql, ctx: AssessContext): Promise<RiskAsse
         detectImpossibleTransition(sql, ctx.identityId, ctx.clientIp, ctx.timestamp),
         detectCoordinatedBehavior(sql, ctx.projectId, ctx.identityId, ctx.signalHash, ctx.clusterId),
         detectCoordinatedAccounts(sql, ctx.projectId, ctx.identityId),
+        detectAnonymizerIp(ctx.clientIp),
       ]);
 
       const flags = detectorResults.filter((r): r is RiskFlag => r !== null);
