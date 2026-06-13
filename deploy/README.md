@@ -107,6 +107,12 @@ e.g. add to each service in `docker-compose.yml`:
 
 Without it, lookups return null and the signal is simply not emitted (no errors).
 
+The related **anonymizer / datacenter** signal (`anonymizer_ip`) works the same way:
+mount an Anonymous-IP `.mmdb` and set `GEOIP_ANONYMOUS_DB_PATH` (authoritative —
+hosting/VPN/Tor/proxy; a paid MaxMind GeoIP2-Anonymous-IP or equivalent), and
+optionally `GEOIP_ASN_DB_PATH` (free GeoLite2-ASN) to name the network operator in
+the reason. Both optional; unset = signal off.
+
 ## What's intentionally not here
 
 - **Observatory UI** — omitted to keep the box lean; add it behind Caddy later if
