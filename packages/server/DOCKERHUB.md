@@ -50,5 +50,6 @@ Run at least one server (web) and one worker against the same Postgres + Redis.
 | `CORS_ALLOWED_ORIGINS` | no | Comma-separated production origins allowed by CORS |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP collector endpoint for traces |
 | `OTEL_SDK_DISABLED` | no | Set `true` to disable OpenTelemetry export |
+| `GEOIP_DB_PATH` | no | Path to a City-level GeoIP `.mmdb` (with lat/lon) to enable impossible-travel detection; unset = signal disabled |
 
 For a full local stack (Postgres, Redis, Observatory UI, Grafana Tempo), use the `docker-compose.yml` in the repository.
