@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, GitBranch, Network, KeyRound, UserCog, CircleUser, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { useAuth } from '../contexts/AuthContext.js';
@@ -15,6 +15,13 @@ export function Layout(): React.ReactElement {
   const { user, logout } = useAuth();
   const { projects, activeId, setActive } = useProjects();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // If the install requires 2FA and this admin hasn't enrolled, funnel them to the
+  // account page (where setup lives) — every other route would 403 anyway.
+  if (user?.mustEnroll && location.pathname !== '/account') {
+    return <Navigate to="/account" replace />;
+  }
 
   // Users management is owner-only; Account is for everyone.
   const nav = [

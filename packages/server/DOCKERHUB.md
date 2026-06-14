@@ -48,6 +48,7 @@ Run at least one server (web) and one worker against the same Postgres + Redis.
 | `REDIS_URL` | yes | Redis connection string (queue + cache + rate limiter) |
 | `PORT` | no | HTTP port (default `3000`) |
 | `CORS_ALLOWED_ORIGINS` | no | Comma-separated production origins allowed by CORS |
+| `SCENT_SECRET_KEY` | no | App key (`openssl rand -hex 32`) that encrypts admin TOTP/2FA secrets at rest. Unset = 2FA enrollment disabled (server still runs) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP collector endpoint for traces |
 | `OTEL_SDK_DISABLED` | no | Set `true` to disable OpenTelemetry export |
 | `GEOIP_DB_PATH` | no | Path to a City-level GeoIP `.mmdb` (with lat/lon) to enable impossible-travel detection; unset = signal disabled |

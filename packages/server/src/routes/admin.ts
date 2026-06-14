@@ -16,6 +16,10 @@ import { createInvite, findValidInvite, markInviteAccepted } from '../admin/invi
 import { requireAdmin } from '../admin/middleware.js';
 import { requireOwner, canManageProject } from '../admin/authz.js';
 import { issueCsrfToken, clearCsrfToken, requireCsrf } from '../admin/csrf.js';
+import { generateTotpSecret, totpKeyUri, verifyTotp, generateRecoveryCodes, hashRecoveryCode } from '../admin/totp.js';
+import { encrypt, decrypt, isEncryptionConfigured } from '../admin/crypto.js';
+import { isTwoFactorRequired, setTwoFactorRequired } from '../admin/settings.js';
+import { enforce2faEnrollment } from '../admin/enforce-2fa.js';
 
 export const adminRouter: IRouter = Router();
 
@@ -46,7 +50,35 @@ async function loginRateLimited(ip: string): Promise<boolean> {
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  totpCode: z.string().optional(),
+  recoveryCode: z.string().optional(),
 });
+
+// Verify a 2FA challenge for an enrolled user: a TOTP code, or a one-time recovery
+// code (consumed on use). Returns false if neither is valid.
+async function verifyTwoFactor(
+  userId: string,
+  secretEnc: string | null,
+  totpCode?: string,
+  recoveryCode?: string,
+): Promise<boolean> {
+  if (recoveryCode) {
+    const used = await db<{ id: string }[]>`
+      UPDATE admin_recovery_codes SET used_at = now()
+      WHERE user_id = ${userId} AND code_hash = ${hashRecoveryCode(recoveryCode)} AND used_at IS NULL
+      RETURNING id
+    `;
+    return used.length > 0;
+  }
+  if (totpCode && secretEnc && isEncryptionConfigured()) {
+    try {
+      return verifyTotp(totpCode, decrypt(secretEnc));
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
 
 adminRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
   const ip = req.ip ?? 'unknown';
@@ -62,8 +94,11 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
   }
 
   const email = parsed.data.email.trim().toLowerCase();
-  const rows = await db<{ id: string; password_hash: string; role: string; is_active: boolean }[]>`
-    SELECT id, password_hash, role, is_active FROM admin_users WHERE email = ${email} LIMIT 1
+  const rows = await db<
+    { id: string; password_hash: string; role: string; is_active: boolean; totp_enabled: boolean; totp_secret_enc: string | null }[]
+  >`
+    SELECT id, password_hash, role, is_active, totp_enabled, totp_secret_enc
+    FROM admin_users WHERE email = ${email} LIMIT 1
   `;
 
   // Generic failure for both unknown-email and wrong-password (no enumeration).
@@ -79,11 +114,23 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
+  // Second factor for enrolled users. Not-yet-enrolled users are let in (so they can
+  // enroll); enforce2faEnrollment then funnels them if the install requires 2FA.
+  if (user.totp_enabled) {
+    const passed2fa = await verifyTwoFactor(user.id, user.totp_secret_enc, parsed.data.totpCode, parsed.data.recoveryCode);
+    if (!passed2fa) {
+      const tried = Boolean(parsed.data.totpCode || parsed.data.recoveryCode);
+      res.status(401).json({ error: tried ? 'Invalid two-factor code' : 'Two-factor code required', twoFactorRequired: true });
+      return;
+    }
+  }
+
   const token = await createSession(user.id);
   await db`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
   res.cookie(SESSION_COOKIE, token, cookieOptions);
   issueCsrfToken(res); // double-submit token for subsequent mutations
-  res.json({ id: user.id, email, role: user.role });
+  const mustEnroll = !user.totp_enabled && (await isTwoFactorRequired());
+  res.json({ id: user.id, email, role: user.role, totpEnabled: user.totp_enabled, mustEnroll });
 });
 
 adminRouter.post('/logout', requireCsrf, async (req: Request, res: Response): Promise<void> => {
@@ -144,15 +191,21 @@ adminRouter.post('/invites/accept', async (req: Request, res: Response): Promise
   const token = await createSession(user.id);
   res.cookie(SESSION_COOKIE, token, cookieOptions);
   issueCsrfToken(res);
-  res.status(201).json({ id: user.id, email: invite.email, role: invite.role });
+  const mustEnroll = await isTwoFactorRequired();
+  res.status(201).json({ id: user.id, email: invite.email, role: invite.role, totpEnabled: false, mustEnroll });
 });
 
 // Everything below requires a valid admin session. Mutating routes additionally
 // require the CSRF token (GETs don't need it).
 adminRouter.use(requireAdmin);
+// If the install requires 2FA, block not-yet-enrolled admins from everything except
+// enrollment + session management (see enforce-2fa.ts).
+adminRouter.use(enforce2faEnrollment);
 
-adminRouter.get('/me', (req: Request, res: Response): void => {
-  res.json({ id: req.adminUser?.id, email: req.adminUser?.email, role: req.adminUser?.role });
+adminRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
+  const user = req.adminUser!;
+  const mustEnroll = !user.totpEnabled && (await isTwoFactorRequired());
+  res.json({ id: user.id, email: user.email, role: user.role, totpEnabled: user.totpEnabled, mustEnroll });
 });
 
 adminRouter.get('/projects', async (req: Request, res: Response): Promise<void> => {
@@ -282,7 +335,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // List admins and pending invites.
 adminRouter.get('/users', requireOwner, async (_req: Request, res: Response): Promise<void> => {
   const users = await db`
-    SELECT id, email, role, is_active, last_login_at, created_at
+    SELECT id, email, role, is_active, totp_enabled, last_login_at, created_at
     FROM admin_users ORDER BY created_at ASC
   `;
   const invites = await db`
@@ -436,4 +489,115 @@ adminRouter.delete('/users/:id/projects/:projectId', requireCsrf, requireOwner, 
   }
   await db`DELETE FROM project_members WHERE user_id = ${userId} AND project_id = ${projectId}`;
   res.json({ deleted: true });
+});
+
+// --- Two-factor auth (self-service) ------------------------------------------------
+
+// Begin enrollment: mint a secret (stored encrypted, NOT yet enabled) and return the
+// otpauth URI + secret for the authenticator app to scan / key in.
+adminRouter.post('/me/2fa/setup', requireCsrf, async (req: Request, res: Response): Promise<void> => {
+  if (!isEncryptionConfigured()) {
+    res.status(503).json({ error: 'Two-factor is unavailable: server encryption key (SCENT_SECRET_KEY) is not configured' });
+    return;
+  }
+  const user = req.adminUser!;
+  if (user.totpEnabled) {
+    res.status(409).json({ error: 'Two-factor is already enabled' });
+    return;
+  }
+  const secret = generateTotpSecret();
+  await db`UPDATE admin_users SET totp_secret_enc = ${encrypt(secret)} WHERE id = ${user.id}`;
+  res.json({ otpauthUri: totpKeyUri(user.email, secret), secret });
+});
+
+const TotpVerifySchema = z.object({ code: z.string().min(1) });
+
+// Confirm enrollment: verify a code against the pending secret, flip 2FA on, and issue
+// fresh one-time recovery codes (returned exactly once).
+adminRouter.post('/me/2fa/verify', requireCsrf, async (req: Request, res: Response): Promise<void> => {
+  const parsed = TotpVerifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+  const user = req.adminUser!;
+  if (user.totpEnabled) {
+    res.status(409).json({ error: 'Two-factor is already enabled' });
+    return;
+  }
+  const rows = await db<{ totp_secret_enc: string | null }[]>`
+    SELECT totp_secret_enc FROM admin_users WHERE id = ${user.id} LIMIT 1
+  `;
+  const enc = rows[0]?.totp_secret_enc;
+  if (!enc || !isEncryptionConfigured()) {
+    res.status(400).json({ error: 'Start two-factor setup first' });
+    return;
+  }
+  let codeOk = false;
+  try {
+    codeOk = verifyTotp(parsed.data.code, decrypt(enc));
+  } catch {
+    codeOk = false;
+  }
+  if (!codeOk) {
+    res.status(400).json({ error: 'Invalid code' });
+    return;
+  }
+
+  const { codes, hashes } = generateRecoveryCodes();
+  await db.begin(async (tx) => {
+    await tx`UPDATE admin_users SET totp_enabled = true WHERE id = ${user.id}`;
+    await tx`DELETE FROM admin_recovery_codes WHERE user_id = ${user.id}`;
+    for (const h of hashes) {
+      await tx`INSERT INTO admin_recovery_codes (user_id, code_hash) VALUES (${user.id}, ${h})`;
+    }
+  });
+  res.json({ recoveryCodes: codes });
+});
+
+const DisableTotpSchema = z.object({ password: z.string().min(1) });
+
+// Disable 2FA — requires a password re-auth, then clears the secret + recovery codes.
+adminRouter.post('/me/2fa/disable', requireCsrf, async (req: Request, res: Response): Promise<void> => {
+  const parsed = DisableTotpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+  const user = req.adminUser!;
+  const rows = await db<{ password_hash: string }[]>`SELECT password_hash FROM admin_users WHERE id = ${user.id} LIMIT 1`;
+  const ok = rows[0] ? await verifyPassword(parsed.data.password, rows[0].password_hash) : false;
+  if (!ok) {
+    res.status(403).json({ error: 'Password is incorrect' });
+    return;
+  }
+  await db.begin(async (tx) => {
+    await tx`UPDATE admin_users SET totp_enabled = false, totp_secret_enc = NULL WHERE id = ${user.id}`;
+    await tx`DELETE FROM admin_recovery_codes WHERE user_id = ${user.id}`;
+  });
+  res.json({ ok: true });
+});
+
+// --- Install settings (owner-only) -------------------------------------------------
+
+adminRouter.get('/settings', requireOwner, async (_req: Request, res: Response): Promise<void> => {
+  res.json({ require_2fa: await isTwoFactorRequired() });
+});
+
+const SettingsSchema = z.object({ require_2fa: z.boolean() });
+
+adminRouter.put('/settings', requireCsrf, requireOwner, async (req: Request, res: Response): Promise<void> => {
+  const parsed = SettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+  // Turning the requirement on without an encryption key would let admins enroll but
+  // not actually store secrets — refuse so the toggle can't create a broken state.
+  if (parsed.data.require_2fa && !isEncryptionConfigured()) {
+    res.status(400).json({ error: 'Cannot require two-factor: server encryption key (SCENT_SECRET_KEY) is not configured' });
+    return;
+  }
+  await setTwoFactorRequired(parsed.data.require_2fa);
+  res.json({ require_2fa: parsed.data.require_2fa });
 });

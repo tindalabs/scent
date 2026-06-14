@@ -5,6 +5,7 @@ import { resolveProjectByKey } from './auth.js';
 import { incrFixedWindow } from './rate-limit.js';
 import { validateSession, SESSION_COOKIE } from '../admin/session.js';
 import { canViewProject } from '../admin/authz.js';
+import { isTwoFactorRequired } from '../admin/settings.js';
 
 // Authorizes the /v1 READ routes (dashboard, identities, identity, clusters,
 // accounts) via EITHER of two paths, then sets req.projectId for the handlers —
@@ -66,6 +67,13 @@ export async function requireProjectRead(
   const user = token ? await validateSession(token) : null;
   if (!user) {
     res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  // If the install requires 2FA, a not-yet-enrolled admin can't view data either —
+  // they must enroll first (mirrors enforce2faEnrollment on the /admin routes).
+  if (!user.totpEnabled && (await isTwoFactorRequired())) {
+    res.status(403).json({ error: 'two_factor_enrollment_required' });
     return;
   }
 

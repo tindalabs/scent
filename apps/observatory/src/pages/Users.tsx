@@ -10,6 +10,8 @@ import {
   listUserProjects,
   grantMembership,
   revokeMembership,
+  getSettings,
+  setRequireTwoFactor,
   type AdminAccount,
   type AdminRole,
 } from '../lib/api.js';
@@ -103,6 +105,39 @@ function ProjectAccess({ userId }: { userId: string }): React.ReactElement {
   );
 }
 
+// Owner toggle for the install-wide 2FA requirement.
+function Require2faToggle(): React.ReactElement {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['admin-settings'], queryFn: getSettings });
+  const [error, setError] = useState<string | null>(null);
+  const toggle = useMutation({
+    mutationFn: (value: boolean) => setRequireTwoFactor(value),
+    onSuccess: () => {
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ['admin-settings'] });
+    },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Could not update'),
+  });
+  const on = data?.require_2fa ?? false;
+  return (
+    <div className="rounded-md border border-border p-3">
+      <label className="flex items-center gap-2 text-sm text-foreground">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={toggle.isPending}
+          onChange={(e) => toggle.mutate(e.target.checked)}
+        />
+        Require two-factor authentication for all admins
+      </label>
+      <p className="mt-1 text-xs text-muted-foreground">
+        When on, admins without 2FA are funneled into setup before they can do anything else.
+      </p>
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 export function Users(): React.ReactElement {
   const qc = useQueryClient();
   const { user: me } = useAuth();
@@ -154,6 +189,8 @@ export function Users(): React.ReactElement {
           Invite admins, set roles, grant per-project access, and deactivate accounts.
         </p>
       </div>
+
+      <Require2faToggle />
 
       <form
         className="flex gap-2"
@@ -215,13 +252,14 @@ export function Users(): React.ReactElement {
               <th className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">User</th>
               <th className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Role</th>
               <th className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</th>
+              <th className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">2FA</th>
               <th className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Last login</th>
               <th className="px-4 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={5} className="px-4 py-4"><Skeleton className="h-5 w-full" /></td></tr>
+              <tr><td colSpan={6} className="px-4 py-4"><Skeleton className="h-5 w-full" /></td></tr>
             )}
             {users.map((u: AdminAccount) => {
               const isSelf = u.id === me?.id;
@@ -261,6 +299,9 @@ export function Users(): React.ReactElement {
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={u.is_active ? 'confirmed' : 'unknown'}>{u.is_active ? 'active' : 'disabled'}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={u.totp_enabled ? 'confirmed' : 'unknown'}>{u.totp_enabled ? 'on' : 'off'}</Badge>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {u.last_login_at ? formatDate(u.last_login_at) : '—'}
