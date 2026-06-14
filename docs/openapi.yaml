@@ -133,6 +133,7 @@ paths:
                   page: { type: integer }
                   limit: { type: integer }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /v1/identity/{id}:
     get:
@@ -149,6 +150,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/IdentityWithRisk" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /v1/identity/{id}/timeline:
@@ -171,6 +173,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Drift" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /v1/identity/{id}/signals:
     get:
@@ -191,6 +194,7 @@ paths:
                   signals: { $ref: "#/components/schemas/SignalMap" }
                   asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /v1/identity/{id}/link:
@@ -245,6 +249,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AccountLink" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /v1/account/{accountId}/identities:
     get:
@@ -267,6 +272,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/LinkedIdentity" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /v1/accounts/clusters:
     get:
@@ -289,6 +295,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AccountCluster" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /v1/clusters/{id}:
     get:
@@ -311,6 +318,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/ClusterMember" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /v1/dashboard:
@@ -327,6 +335,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Dashboard" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /admin/login:
     post:
@@ -353,6 +362,7 @@ paths:
                 type: object
                 properties:
                   email: { type: string, format: email }
+                  role: { type: string, enum: [owner, member] }
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -384,12 +394,16 @@ paths:
                 type: object
                 properties:
                   email: { type: string, format: email }
+                  role: { type: string, enum: [owner, member] }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /admin/projects:
     get:
       tags: [Admin]
       summary: List projects
+      description: >-
+        Owners see every project (role 'owner'); members see only the projects granted
+        to them, each tagged with their per-project role.
       security: [{ AdminSession: [] }]
       responses:
         "200":
@@ -406,7 +420,9 @@ paths:
     post:
       tags: [Admin]
       summary: Create a project and mint its API key
-      description: The plaintext `apiKey` is returned exactly once and is not recoverable.
+      description: >-
+        Owner role required. The plaintext `apiKey` is returned exactly once and is not
+        recoverable. (A 403 here is either a CSRF failure or insufficient role.)
       security: [{ AdminSession: [], CsrfToken: [] }]
       requestBody:
         required: true
@@ -435,7 +451,9 @@ paths:
     post:
       tags: [Admin]
       summary: Rotate a project's API key
-      description: Mints a new key (returned once) and invalidates the old one immediately.
+      description: >-
+        Requires owner or the project's 'admin' role. Mints a new key (returned once)
+        and invalidates the old one immediately. (A 403 is either CSRF or insufficient role.)
       security: [{ AdminSession: [], CsrfToken: [] }]
       parameters: [{ $ref: "#/components/parameters/ProjectId" }]
       responses:
@@ -455,6 +473,9 @@ paths:
     delete:
       tags: [Admin]
       summary: Delete a project (cascades its data)
+      description: >-
+        Owner role required (a project 'admin' can rotate but not delete). (A 403 is
+        either CSRF or insufficient role.)
       security: [{ AdminSession: [], CsrfToken: [] }]
       parameters: [{ $ref: "#/components/parameters/ProjectId" }]
       responses:
@@ -522,6 +543,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Authenticated but not authorized (insufficient role / no project access)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -741,3 +767,10 @@ components:
         name: { type: string }
         key_prefix: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+        role:
+          type: string
+          enum: [owner, admin, viewer]
+          description: >-
+            The caller's relationship to this project — 'owner' (implicit access to
+            all projects) or the member's per-project role ('admin' = manage keys,
+            'viewer' = read-only data).

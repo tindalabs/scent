@@ -37,7 +37,7 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
-  await db`INSERT INTO admin_users (email, password_hash) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)})`;
+  await db`INSERT INTO admin_users (email, password_hash, role) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner')`;
   await db`DELETE FROM projects WHERE name LIKE 'AdminIT %'`;
 });
 

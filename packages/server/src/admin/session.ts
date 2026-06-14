@@ -6,9 +6,12 @@ import { db } from '../db/client.js';
 const SESSION_TTL_DAYS = 7;
 export const SESSION_COOKIE = 'scent_admin';
 
+export type AdminRole = 'owner' | 'member';
+
 export interface AdminUser {
   id: string;
   email: string;
+  role: AdminRole;
 }
 
 function hashToken(token: string): string {
@@ -28,8 +31,8 @@ export async function createSession(userId: string): Promise<string> {
 
 // Resolve a raw token to its admin user, or null if missing/expired.
 export async function validateSession(token: string): Promise<AdminUser | null> {
-  const rows = await db<{ id: string; email: string }[]>`
-    SELECT u.id, u.email
+  const rows = await db<AdminUser[]>`
+    SELECT u.id, u.email, u.role
     FROM admin_sessions s
     JOIN admin_users u ON u.id = s.user_id
     WHERE s.token_hash = ${hashToken(token)} AND s.expires_at > now()
