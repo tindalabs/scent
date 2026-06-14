@@ -18,6 +18,11 @@ const TAMPER_WEIGHTS: Record<string, number> = {
   'tamper.devtools_open': 0.20,  // very low — common in dev environments
 };
 
+// Above this combined confidence we call it automation; below it the signals are weak
+// (e.g. devtools open in a dev environment) and we use softer wording so a human with
+// devtools open isn't labelled a bot. The machine-readable `code` stays stable either way.
+const AUTOMATION_CONFIDENCE = 0.5;
+
 // Combines all SDK-side anti-tamper signals into a single automation risk flag.
 // Uses a probabilistic OR: P(automation) = 1 − ∏(1 − w_i) for all active signals.
 export function detectAutomation(signals: SignalMap): RiskFlag | null {
@@ -34,11 +39,13 @@ export function detectAutomation(signals: SignalMap): RiskFlag | null {
   if (activeWeights.length === 0) return null;
 
   const confidence = 1 - activeWeights.reduce((prod, w) => prod * (1 - w), 1);
+  // Drop the `tamper.` prefix — the reason is surfaced to humans in the UI.
+  const names = activeSignals.map((s) => s.replace(/^tamper\./, '')).join(', ');
 
   return {
     code: 'automation_suspected',
-    label: 'Automation detected',
-    reason: `Anti-tamper signals active: ${activeSignals.join(', ')}`,
+    label: confidence >= AUTOMATION_CONFIDENCE ? 'Automation detected' : 'Anti-tamper signals',
+    reason: `Anti-tamper signals active: ${names}`,
     confidence: Math.min(0.99, confidence),
   };
 }

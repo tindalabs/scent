@@ -15,6 +15,7 @@ describe('detectAutomation', () => {
     expect(flag).not.toBeNull();
     expect(flag!.code).toBe('automation_suspected');
     expect(flag!.confidence).toBeGreaterThan(0.85);
+    expect(flag!.label).toBe('Automation detected'); // strong signal → firm label
   });
 
   it('confidence increases with multiple active signals', () => {
@@ -31,6 +32,9 @@ describe('detectAutomation', () => {
     const flag = detectAutomation({ 'tamper.devtools_open': true });
     expect(flag).not.toBeNull();
     expect(flag!.confidence).toBeLessThan(0.30);
+    // Weak signal → softer label, and the reason drops the `tamper.` prefix.
+    expect(flag!.label).toBe('Anti-tamper signals');
+    expect(flag!.reason).toBe('Anti-tamper signals active: devtools_open');
   });
 
   it('caps confidence below 1.0', () => {

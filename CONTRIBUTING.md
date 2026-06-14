@@ -45,6 +45,22 @@ pnpm --filter @tindalabs/scent-sdk build
 pnpm --filter @tindalabs/scent-server dev
 ```
 
+### Running server tests against the local stack
+
+The server integration suites talk to a real Postgres + Redis. If you have the full
+docker-compose stack running, **stop the worker before running them**:
+
+```bash
+docker compose stop scent-worker
+pnpm --filter @tindalabs/scent-server test
+docker compose start scent-worker   # restore when done
+```
+
+`scent-worker` consumes the shared Redis `ingest` queue, so a running worker will pull
+the test suite's enqueued jobs and resolve them into the tests' projects — polluting
+fixtures and causing spurious failures. CI is unaffected (it uses isolated service
+containers with no long-running worker).
+
 ## Submitting a pull request
 
 1. Fork the repository and create a branch from `main`.
