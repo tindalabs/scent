@@ -1,10 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, GitBranch, Network, KeyRound, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, GitBranch, Network, KeyRound, UserCog, CircleUser, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { useAuth } from '../contexts/AuthContext.js';
 import { useProjects } from '../contexts/ProjectContext.js';
 
-const nav = [
+const baseNav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/identities', label: 'Identities', icon: Users, end: false },
   { to: '/accounts', label: 'Account clusters', icon: Network, end: false },
@@ -15,6 +15,13 @@ export function Layout(): React.ReactElement {
   const { user, logout } = useAuth();
   const { projects, activeId, setActive } = useProjects();
   const navigate = useNavigate();
+
+  // Users management is owner-only; Account is for everyone.
+  const nav = [
+    ...baseNav,
+    ...(user?.role === 'owner' ? [{ to: '/users', label: 'Users', icon: UserCog, end: false }] : []),
+    { to: '/account', label: 'Account', icon: CircleUser, end: false },
+  ];
 
   async function onLogout(): Promise<void> {
     await logout();
