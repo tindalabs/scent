@@ -8,12 +8,11 @@ RUN pnpm install --frozen-lockfile --filter @tindalabs/scent-observatory
 
 COPY apps/observatory apps/observatory
 
-# API_BASE and API_KEY are baked in at build time.
-# Override with --build-arg if your server is not at localhost:3000.
+# The API base URL is baked in at build time. Override with --build-arg if your
+# server is not at localhost:3000. Data access is authorized at runtime by the admin
+# session cookie + the selected project (X-Project-Id) — there is no build-time key.
 ARG VITE_API_BASE=http://localhost:3000
-ARG VITE_API_KEY=demo-api-key-dev
 ENV VITE_API_BASE=$VITE_API_BASE
-ENV VITE_API_KEY=$VITE_API_KEY
 
 RUN pnpm --filter @tindalabs/scent-observatory build
 

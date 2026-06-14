@@ -16,6 +16,27 @@ declare global {
 // per-request DB round-trip on every /v1/* route.
 const CACHE_TTL_SECONDS = 300;
 
+// Resolve a plaintext API key to its project ID, or null if the key is unknown.
+// The lookup is cached in Redis (`proj:<keyhash>`); rotate/revoke in routes/admin.ts
+// busts that cache so a killed key stops authenticating immediately. Shared by
+// requireApiKey (ingest/resolve) and requireProjectRead (the read routes).
+export async function resolveProjectByKey(apiKey: string): Promise<string | null> {
+  // Hash before it touches the DB or Redis — the plaintext key is never stored.
+  const keyHash = hashApiKey(apiKey);
+  const cacheKey = `proj:${keyHash}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) return cached;
+
+  const project = await db<{ id: string }[]>`
+    SELECT id FROM projects WHERE api_key_hash = ${keyHash} LIMIT 1
+  `;
+  if (!project[0]) return null;
+
+  await redis.set(cacheKey, project[0].id, 'EX', CACHE_TTL_SECONDS);
+  return project[0].id;
+}
+
 export async function requireApiKey(
   req: Request,
   res: Response,
@@ -27,27 +48,12 @@ export async function requireApiKey(
     return;
   }
 
-  // Hash before it touches the DB or Redis — the plaintext key is never stored.
-  const keyHash = hashApiKey(apiKey);
-  const cacheKey = `proj:${keyHash}`;
-
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    req.projectId = cached;
-    next();
-    return;
-  }
-
-  const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE api_key_hash = ${keyHash} LIMIT 1
-  `;
-
-  if (!project[0]) {
+  const projectId = await resolveProjectByKey(apiKey);
+  if (!projectId) {
     res.status(401).json({ error: 'Unknown API key' });
     return;
   }
 
-  await redis.set(cacheKey, project[0].id, 'EX', CACHE_TTL_SECONDS);
-  req.projectId = project[0].id;
+  req.projectId = projectId;
   next();
 }
