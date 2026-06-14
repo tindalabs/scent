@@ -93,8 +93,11 @@ resolveRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     if (stored[0]) storedRisk = stored[0];
   }
 
-  // Merge inline automation flags with stored flags, deduplicate by code.
-  const mergedFlags: RiskFlag[] = [...(storedRisk?.flags ?? [])];
+  // Merge inline automation flags with stored flags, deduplicate by code. Guard that
+  // stored flags is actually an array — legacy rows (pre-fix) double-encoded it as a
+  // JSON string, and spreading a string would explode into per-character garbage.
+  const storedFlags = Array.isArray(storedRisk?.flags) ? storedRisk.flags : [];
+  const mergedFlags: RiskFlag[] = [...storedFlags];
   for (const flag of inlineFlags) {
     if (!mergedFlags.some((f) => f.code === flag.code)) {
       mergedFlags.push(flag);

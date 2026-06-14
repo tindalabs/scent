@@ -96,43 +96,62 @@ btnObserve.addEventListener('click', () => {
       setStatus('Flushing to server…', 'loading');
       showSignals(signals);
 
-      // Step 2: flush to server and get server-resolved result
+      // Step 2: get the server-resolved result, then persist to history.
+      //
+      // /v1/events is now async (returns 202 with no body), so the inline result comes
+      // from POST /v1/resolve — the synchronous "assess this snapshot" endpoint that
+      // returns identity + confidence + risk without persisting. We then sdk.flush()
+      // (POST /v1/events, fire-and-forget) to commit the observation so it shows up in
+      // the Observatory. Resolve-then-flush mirrors the "check, then commit" flow.
       let serverResult: {
-        identityId: string;
+        identityId: string | null;
         confidence: number;
         isNew: boolean;
         continuity: string;
         risk: { score: number; band: string; flags: string[] };
-        ambiguous?: boolean;
       } | null = null;
 
       try {
-        // Flush returns void; we re-fetch with a manual call to capture the response.
         const tp = readTraceparent();
         const response = await fetch(
-          `${import.meta.env['VITE_API_BASE'] ?? 'http://localhost:3000/v1'}/events`,
+          `${import.meta.env['VITE_API_BASE'] ?? 'http://localhost:3000/v1'}/resolve`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'X-Api-Key': import.meta.env['VITE_API_KEY'] ?? 'demo-api-key-dev',
+              // W3C trace header so the server span links to this browser trace.
+              ...(tp ? { traceparent: tp } : {}),
             },
-            body: JSON.stringify({
-              snapshots: [{
-                identityId: obs.identity.id,
-                signals,
-                persistencePolicy: 'balanced',
-                timestamp: new Date().toISOString(),
-                ...(tp ? { traceparent: tp } : {}),
-              }],
-            }),
+            body: JSON.stringify({ signals }),
           },
         );
 
         if (response.ok) {
-          const data = await response.json() as { results: typeof serverResult[] };
-          serverResult = data.results[0] ?? null;
+          const data = await response.json() as {
+            identityId: string | null;
+            confidence: number;
+            isNew: boolean;
+            continuity: string;
+            risk: { score: number; band: string; flags: { code: string; label: string }[] };
+          };
+          serverResult = {
+            identityId: data.identityId,
+            confidence: data.confidence,
+            isNew: data.isNew,
+            continuity: data.continuity,
+            risk: {
+              score: data.risk.score,
+              band: data.risk.band,
+              // Defensive: only keep real labels, so a malformed flag can't render as
+              // a row of "undefined" chips.
+              flags: data.risk.flags.map((f) => f.label).filter((l): l is string => Boolean(l)),
+            },
+          };
         }
+
+        // Commit the observation to history (async ingest). Populates the Observatory.
+        await sdk.flush();
       } catch {
         // Server unreachable — fall back to local result
       }
@@ -148,10 +167,18 @@ btnObserve.addEventListener('click', () => {
       const source = serverResult ? 'server (probabilistic engine)' : 'local (Phase 1 fallback)';
       const tp = readTraceparent();
 
-      // Update UI
-      idValueEl.textContent = resolved.identityId;
-      confidenceFill.style.width = `${Math.round(resolved.confidence * 100)}%`;
-      confidencePct.textContent = `${Math.round(resolved.confidence * 100)}%`;
+      // Update UI. Null-coalesce every numeric/array field — the local fallback
+      // observation may carry nulls (Phase-1 placeholders), and we never want a
+      // render crash to mask the actual result.
+      const confidence = resolved.confidence ?? 0;
+      const riskScoreVal = resolved.risk.score ?? 0;
+      const flags = resolved.risk.flags ?? [];
+
+      // /resolve returns a null id for a brand-new visitor (it doesn't persist), so
+      // fall back to the SDK's local identity id for display.
+      idValueEl.textContent = resolved.identityId ?? obs.identity.id;
+      confidenceFill.style.width = `${Math.round(confidence * 100)}%`;
+      confidencePct.textContent = `${Math.round(confidence * 100)}%`;
 
       setBadge(continuityBadge, resolved.continuity, CONTINUITY_CLASSES);
       continuityValue.textContent = resolved.continuity;
@@ -159,10 +186,10 @@ btnObserve.addEventListener('click', () => {
       newBadge.style.display = resolved.isNew ? 'inline' : 'none';
 
       setBadge(riskBadge, resolved.risk.band, RISK_CLASSES);
-      riskScore.textContent = `(score: ${resolved.risk.score.toFixed(3)})`;
+      riskScore.textContent = `(score: ${riskScoreVal.toFixed(3)})`;
 
-      riskFlagsEl.innerHTML = resolved.risk.flags.length
-        ? resolved.risk.flags.map((f: string) => `<span class="flag">${f}</span>`).join('')
+      riskFlagsEl.innerHTML = flags.length
+        ? flags.map((f: string) => `<span class="flag">${f}</span>`).join('')
         : '';
 
       sourceValue.textContent = source;

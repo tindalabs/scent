@@ -37,6 +37,9 @@ services:
       DATABASE_URL: postgresql://scent:scent_dev@postgres:5432/scent
       REDIS_URL: redis://redis:6379
       PORT: "3000"
+      # Dev-only key so admin 2FA enrollment works in the local stack. In production
+      # this comes from the deploy .env (openssl rand -hex 32); see deploy/README.md.
+      SCENT_SECRET_KEY: dev-2fa-secret-key-local-only
       OTEL_SERVICE_NAME: scent-server
       OTEL_SERVICE_VERSION: "0.0.1"
       # Send to the infra-stack OTel collector (tindalabs-dev) so scent-server
@@ -80,8 +83,9 @@ services:
       context: .
       dockerfile: apps/observatory/Dockerfile
       args:
+        # No VITE_API_KEY: the Observatory now authenticates via the admin session
+        # cookie + project switcher, not a baked-in key.
         VITE_API_BASE: http://localhost:3004
-        VITE_API_KEY: demo-api-key-dev
     ports:
       - "4000:80"
     depends_on:
