@@ -28,10 +28,10 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// Error carrying the HTTP status, so callers can distinguish 401 (not signed in)
-// from real failures.
+// Error carrying the HTTP status (so callers can distinguish 401 from real failures)
+// and the parsed JSON body (so login can detect `twoFactorRequired`, etc.).
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public body?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
   }
@@ -56,13 +56,14 @@ async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
+    let body: Record<string, unknown> | undefined;
     try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) message = body.error;
+      body = (await res.json()) as Record<string, unknown>;
+      if (typeof body['error'] === 'string') message = body['error'];
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, body);
   }
   return res.json() as Promise<T>;
 }
@@ -73,6 +74,10 @@ export interface AdminUser {
   id: string;
   email: string;
   role: AdminRole;
+  totpEnabled: boolean;
+  // True when the install requires 2FA and this user hasn't enrolled — the UI funnels
+  // them to set it up.
+  mustEnroll: boolean;
 }
 
 export interface AdminProject {
@@ -95,8 +100,12 @@ export async function adminMe(): Promise<AdminUser | null> {
   }
 }
 
-export function adminLogin(email: string, password: string): Promise<AdminUser> {
-  return adminFetch('/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+export function adminLogin(
+  email: string,
+  password: string,
+  second?: { totpCode?: string; recoveryCode?: string },
+): Promise<AdminUser> {
+  return adminFetch('/admin/login', { method: 'POST', body: JSON.stringify({ email, password, ...second }) });
 }
 
 export function adminLogout(): Promise<{ ok: boolean }> {
@@ -126,6 +135,7 @@ export interface AdminAccount {
   email: string;
   role: AdminRole;
   is_active: boolean;
+  totp_enabled: boolean;
   last_login_at: string | null;
   created_at: string;
 }
@@ -189,6 +199,28 @@ export function getInvite(token: string): Promise<{ email: string; role: AdminRo
 
 export function acceptInvite(token: string, password: string): Promise<AdminUser> {
   return adminFetch('/admin/invites/accept', { method: 'POST', body: JSON.stringify({ token, password }) });
+}
+
+// --- Two-factor auth (self-service) + install settings -----------------------------
+
+export function setup2fa(): Promise<{ otpauthUri: string; secret: string }> {
+  return adminFetch('/admin/me/2fa/setup', { method: 'POST' });
+}
+
+export function verify2fa(code: string): Promise<{ recoveryCodes: string[] }> {
+  return adminFetch('/admin/me/2fa/verify', { method: 'POST', body: JSON.stringify({ code }) });
+}
+
+export function disable2fa(password: string): Promise<{ ok: boolean }> {
+  return adminFetch('/admin/me/2fa/disable', { method: 'POST', body: JSON.stringify({ password }) });
+}
+
+export function getSettings(): Promise<{ require_2fa: boolean }> {
+  return adminFetch('/admin/settings');
+}
+
+export function setRequireTwoFactor(require_2fa: boolean): Promise<{ require_2fa: boolean }> {
+  return adminFetch('/admin/settings', { method: 'PUT', body: JSON.stringify({ require_2fa }) });
 }
 
 // Types mirroring server responses

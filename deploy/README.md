@@ -65,6 +65,12 @@ The CLI admin is an **owner**. To add more admins, use the owner-only **Users** 
 invite by email (you get a copy-paste link, no SMTP needed), set each one's role
 (owner or member) and per-project access, and deactivate accounts when needed.
 
+**Two-factor auth (TOTP):** set `SCENT_SECRET_KEY` (`openssl rand -hex 32`) in `.env`
+to enable it — it encrypts enrolled secrets at rest. Each admin enables 2FA from the
+**Account** page (authenticator app + one-time recovery codes); owners can require it
+install-wide from the **Users** page. Keep the key stable: changing it makes existing
+2FA secrets undecryptable (admins would re-enroll). Left unset, 2FA is simply disabled.
+
 Verify end to end:
 ```bash
 curl -X POST https://<SCENT_DOMAIN>/v1/resolve \

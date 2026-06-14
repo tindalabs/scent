@@ -4,7 +4,7 @@ import { adminMe, adminLogin, adminLogout, type AdminUser } from '../lib/api.js'
 interface AuthState {
   user: AdminUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, second?: { totpCode?: string; recoveryCode?: string }) => Promise<void>;
   logout: () => Promise<void>;
   // Re-resolve the session from the server — used after accepting an invite, which
   // logs the new user in via a Set-Cookie the SPA doesn't otherwise observe.
@@ -25,9 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }): React.React
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    setUser(await adminLogin(email, password));
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string, second?: { totpCode?: string; recoveryCode?: string }) => {
+      setUser(await adminLogin(email, password, second));
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     await adminLogout();

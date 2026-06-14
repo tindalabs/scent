@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
+import { ApiError } from '../lib/api.js';
 import { Button } from '../components/ui/button.js';
 
 export function Login(): React.ReactElement {
@@ -8,6 +9,9 @@ export function Login(): React.ReactElement {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [needsCode, setNeedsCode] = useState(false);
+  const [useRecovery, setUseRecovery] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,10 +20,21 @@ export function Login(): React.ReactElement {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      const second = needsCode
+        ? useRecovery
+          ? { recoveryCode: code }
+          : { totpCode: code }
+        : undefined;
+      await login(email, password, second);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      // The server signals 2FA is needed with { twoFactorRequired: true }.
+      if (err instanceof ApiError && err.body?.['twoFactorRequired']) {
+        setNeedsCode(true);
+        setError(needsCode ? 'Invalid code — try again.' : null);
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -68,10 +83,38 @@ export function Login(): React.ReactElement {
           />
         </div>
 
+        {needsCode && (
+          <div className="space-y-1">
+            <label htmlFor="code" className="text-xs text-muted-foreground">
+              {useRecovery ? 'Recovery code' : 'Authenticator code'}
+            </label>
+            <input
+              id="code"
+              type="text"
+              inputMode={useRecovery ? 'text' : 'numeric'}
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setUseRecovery((v) => !v);
+                setCode('');
+              }}
+              className="text-xs text-muted-foreground underline"
+            >
+              {useRecovery ? 'Use an authenticator code' : 'Use a recovery code'}
+            </button>
+          </div>
+        )}
+
         {error && <p className="text-xs text-red-400">{error}</p>}
 
         <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? 'Signing in…' : needsCode ? 'Verify' : 'Sign in'}
         </Button>
       </form>
     </div>

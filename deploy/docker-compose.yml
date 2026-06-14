@@ -40,6 +40,7 @@ services:
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      SCENT_SECRET_KEY: ${SCENT_SECRET_KEY:-}
       OTEL_SDK_DISABLED: "true"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]

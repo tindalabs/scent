@@ -341,7 +341,10 @@ paths:
     post:
       tags: [Admin]
       summary: Admin login
-      description: On success sets the `scent_admin` session cookie and the `scent_csrf` double-submit cookie.
+      description: >-
+        On success sets the `scent_admin` session cookie and the `scent_csrf`
+        double-submit cookie. For 2FA-enrolled users, supply `totpCode` (or
+        `recoveryCode`); without it the response is 401 with `twoFactorRequired: true`.
       security: []
       requestBody:
         required: true
@@ -353,18 +356,25 @@ paths:
               properties:
                 email: { type: string, format: email }
                 password: { type: string }
+                totpCode: { type: string, description: "6-digit authenticator code (if 2FA enrolled)" }
+                recoveryCode: { type: string, description: "One-time recovery code (alternative to totpCode)" }
       responses:
         "200":
           description: Logged in
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  email: { type: string, format: email }
-                  role: { type: string, enum: [owner, member] }
+              schema: { $ref: "#/components/schemas/AdminIdentity" }
         "400": { $ref: "#/components/responses/ValidationError" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
+        "401":
+          description: "Invalid credentials, or 2FA code required/invalid (twoFactorRequired: true)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Account is disabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /admin/logout:
@@ -390,11 +400,7 @@ paths:
           description: The signed-in admin
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  email: { type: string, format: email }
-                  role: { type: string, enum: [owner, member] }
+              schema: { $ref: "#/components/schemas/AdminIdentity" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /admin/projects:
@@ -736,6 +742,132 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /admin/me/2fa/setup:
+    post:
+      tags: [Admin]
+      summary: Begin TOTP enrollment
+      description: >-
+        Generates a secret (stored encrypted, not yet enabled) and returns the otpauth
+        URI + secret for an authenticator app. Requires SCENT_SECRET_KEY to be set.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      responses:
+        "200":
+          description: Pending enrollment material
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otpauthUri: { type: string }
+                  secret: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Two-factor already enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Server encryption key (SCENT_SECRET_KEY) not configured
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/me/2fa/verify:
+    post:
+      tags: [Admin]
+      summary: Confirm TOTP enrollment
+      description: Verifies a code against the pending secret, enables 2FA, and returns one-time recovery codes (once).
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: 2FA enabled; recovery codes returned once
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recoveryCodes: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Two-factor already enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/me/2fa/disable:
+    post:
+      tags: [Admin]
+      summary: Disable TOTP (password re-auth)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        "200":
+          description: 2FA disabled
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403":
+          description: CSRF failure or incorrect password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Read install settings (owner-only)
+      security: [{ AdminSession: [] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { type: object, properties: { require_2fa: { type: boolean } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Admin]
+      summary: Update install settings (owner-only)
+      description: Turning on require_2fa needs SCENT_SECRET_KEY configured, else 400.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [require_2fa]
+              properties:
+                require_2fa: { type: boolean }
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema: { type: object, properties: { require_2fa: { type: boolean } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -1035,6 +1167,10 @@ components:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
         role: { type: string, enum: [owner, member] }
+        totpEnabled: { type: boolean, description: Whether the user has 2FA enabled. }
+        mustEnroll:
+          type: boolean
+          description: True when the install requires 2FA and the user hasn't enrolled (UI funnels them to setup).
 
     AdminAccount:
       type: object
@@ -1043,6 +1179,7 @@ components:
         email: { type: string, format: email }
         role: { type: string, enum: [owner, member] }
         is_active: { type: boolean }
+        totp_enabled: { type: boolean }
         last_login_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
 
