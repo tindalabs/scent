@@ -108,7 +108,7 @@ btnObserve.addEventListener('click', () => {
         confidence: number;
         isNew: boolean;
         continuity: string;
-        risk: { score: number; band: string; flags: string[] };
+        risk: { score: number; band: string; flags: { label: string; reason: string }[] };
       } | null = null;
 
       try {
@@ -133,7 +133,7 @@ btnObserve.addEventListener('click', () => {
             confidence: number;
             isNew: boolean;
             continuity: string;
-            risk: { score: number; band: string; flags: { code: string; label: string }[] };
+            risk: { score: number; band: string; flags: { code: string; label: string; reason: string }[] };
           };
           serverResult = {
             identityId: data.identityId,
@@ -143,9 +143,11 @@ btnObserve.addEventListener('click', () => {
             risk: {
               score: data.risk.score,
               band: data.risk.band,
-              // Defensive: only keep real labels, so a malformed flag can't render as
-              // a row of "undefined" chips.
-              flags: data.risk.flags.map((f) => f.label).filter((l): l is string => Boolean(l)),
+              // Keep label + reason (reason becomes the chip tooltip). Drop malformed
+              // entries so they can't render as "undefined" chips.
+              flags: data.risk.flags
+                .filter((f) => Boolean(f.label))
+                .map((f) => ({ label: f.label, reason: f.reason })),
             },
           };
         }
@@ -161,7 +163,11 @@ btnObserve.addEventListener('click', () => {
         confidence: obs.identity.confidence,
         isNew: obs.identity.isNew,
         continuity: obs.identity.continuity,
-        risk: { score: obs.risk.score, band: 'low', flags: obs.risk.flags },
+        risk: {
+          score: obs.risk.score,
+          band: 'low',
+          flags: (obs.risk.flags ?? []).map((f) => ({ label: String(f), reason: String(f) })),
+        },
       };
 
       const source = serverResult ? 'server (probabilistic engine)' : 'local (Phase 1 fallback)';
@@ -188,8 +194,11 @@ btnObserve.addEventListener('click', () => {
       setBadge(riskBadge, resolved.risk.band, RISK_CLASSES);
       riskScore.textContent = `(score: ${riskScoreVal.toFixed(3)})`;
 
+      // Each flag chip shows its label; hovering reveals the reason (native tooltip).
       riskFlagsEl.innerHTML = flags.length
-        ? flags.map((f: string) => `<span class="flag">${f}</span>`).join('')
+        ? flags
+            .map((f) => `<span class="flag" title="${f.reason.replace(/"/g, '&quot;')}">${f.label}</span>`)
+            .join('')
         : '';
 
       sourceValue.textContent = source;
