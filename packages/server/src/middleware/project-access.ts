@@ -4,6 +4,7 @@ import { hashApiKey } from './api-key.js';
 import { resolveProjectByKey } from './auth.js';
 import { incrFixedWindow } from './rate-limit.js';
 import { validateSession, SESSION_COOKIE } from '../admin/session.js';
+import { canViewProject } from '../admin/authz.js';
 
 // Authorizes the /v1 READ routes (dashboard, identities, identity, clusters,
 // accounts) via EITHER of two paths, then sets req.projectId for the handlers —
@@ -80,13 +81,17 @@ export async function requireProjectRead(
     return;
   }
 
-  // Any authenticated admin may view any project — consistent with the admin API,
-  // which lets any admin manage every project (admin_users has no per-project ACL).
   const project = await db<{ id: string }[]>`
     SELECT id FROM projects WHERE id = ${projectId} LIMIT 1
   `;
   if (!project[0]) {
     res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  // RBAC: owners see every project; members only those granted in project_members.
+  if (!(await canViewProject(user, projectId))) {
+    res.status(403).json({ error: 'You do not have access to this project' });
     return;
   }
 

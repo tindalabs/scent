@@ -67,8 +67,11 @@ async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type AdminRole = 'owner' | 'member';
+
 export interface AdminUser {
   email: string;
+  role: AdminRole;
 }
 
 export interface AdminProject {
@@ -76,6 +79,9 @@ export interface AdminProject {
   name: string;
   key_prefix: string | null;
   created_at: string;
+  // 'owner' for owners (implicit access to all projects), or the member's per-project
+  // role ('admin' = manage keys, 'viewer' = read-only).
+  role: 'owner' | 'admin' | 'viewer';
 }
 
 // Returns the signed-in admin, or null if there's no valid session (401).

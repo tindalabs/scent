@@ -30,7 +30,9 @@ beforeAll(async () => {
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
   await db`DELETE FROM projects WHERE name LIKE 'ProjAccessIT %'`;
 
-  await db`INSERT INTO admin_users (email, password_hash) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)})`;
+  // Owner — exercises the "view any project" path; member-scoping is covered in the
+  // dedicated RBAC suite.
+  await db`INSERT INTO admin_users (email, password_hash, role) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner')`;
 
   const [projA] = await db<{ id: string }[]>`
     INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(KEY_A)}, 'ProjAccessIT A') RETURNING id

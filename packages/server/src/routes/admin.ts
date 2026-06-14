@@ -11,6 +11,7 @@ import {
   SESSION_MAX_AGE_MS,
 } from '../admin/session.js';
 import { requireAdmin } from '../admin/middleware.js';
+import { requireOwner, canManageProject } from '../admin/authz.js';
 import { issueCsrfToken, clearCsrfToken, requireCsrf } from '../admin/csrf.js';
 
 export const adminRouter: IRouter = Router();
@@ -58,8 +59,8 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
   }
 
   const email = parsed.data.email.trim().toLowerCase();
-  const rows = await db<{ id: string; password_hash: string }[]>`
-    SELECT id, password_hash FROM admin_users WHERE email = ${email} LIMIT 1
+  const rows = await db<{ id: string; password_hash: string; role: string }[]>`
+    SELECT id, password_hash, role FROM admin_users WHERE email = ${email} LIMIT 1
   `;
 
   // Generic failure for both unknown-email and wrong-password (no enumeration).
@@ -74,7 +75,7 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
   await db`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
   res.cookie(SESSION_COOKIE, token, cookieOptions);
   issueCsrfToken(res); // double-submit token for subsequent mutations
-  res.json({ email });
+  res.json({ email, role: user.role });
 });
 
 adminRouter.post('/logout', requireCsrf, async (req: Request, res: Response): Promise<void> => {
@@ -90,21 +91,31 @@ adminRouter.post('/logout', requireCsrf, async (req: Request, res: Response): Pr
 adminRouter.use(requireAdmin);
 
 adminRouter.get('/me', (req: Request, res: Response): void => {
-  res.json({ email: req.adminUser?.email });
+  res.json({ email: req.adminUser?.email, role: req.adminUser?.role });
 });
 
-adminRouter.get('/projects', async (_req: Request, res: Response): Promise<void> => {
-  const projects = await db`
-    SELECT id, name, key_prefix, created_at
-    FROM projects
-    ORDER BY created_at DESC
-  `;
+adminRouter.get('/projects', async (req: Request, res: Response): Promise<void> => {
+  const user = req.adminUser!;
+  // Owners see every project (with the synthetic role 'owner'); members see only the
+  // projects granted to them in project_members, tagged with their per-project role.
+  const projects = user.role === 'owner'
+    ? await db`
+        SELECT id, name, key_prefix, created_at, 'owner' AS role
+        FROM projects
+        ORDER BY created_at DESC
+      `
+    : await db`
+        SELECT p.id, p.name, p.key_prefix, p.created_at, pm.role
+        FROM projects p
+        JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ${user.id}
+        ORDER BY p.created_at DESC
+      `;
   res.json({ projects });
 });
 
 const CreateProjectSchema = z.object({ name: z.string().trim().min(1).max(120) });
 
-adminRouter.post('/projects', requireCsrf, async (req: Request, res: Response): Promise<void> => {
+adminRouter.post('/projects', requireCsrf, requireOwner, async (req: Request, res: Response): Promise<void> => {
   const parsed = CreateProjectSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid payload' });
@@ -135,6 +146,11 @@ adminRouter.post('/projects/:id/rotate', requireCsrf, async (req: Request, res: 
     res.status(404).json({ error: 'Project not found' });
     return;
   }
+  // Rotating keys is a manage action: owner or the project's 'admin' member.
+  if (!(await canManageProject(req.adminUser!, id))) {
+    res.status(403).json({ error: 'You do not have permission to manage this project' });
+    return;
+  }
 
   const { apiKey, keyHash, keyPrefix } = mintApiKey();
   await db`
@@ -146,7 +162,9 @@ adminRouter.post('/projects/:id/rotate', requireCsrf, async (req: Request, res: 
   res.json({ apiKey });
 });
 
-adminRouter.delete('/projects/:id', requireCsrf, async (req: Request, res: Response): Promise<void> => {
+// Deleting a project cascades all of its identities/snapshots — an irreversible,
+// install-level action, so it's owner-only (a project 'admin' can rotate but not drop).
+adminRouter.delete('/projects/:id', requireCsrf, requireOwner, async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id;
   if (!id) {
     res.status(400).json({ error: 'Missing project id' });
