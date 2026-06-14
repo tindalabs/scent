@@ -13,6 +13,9 @@ tree, CI, the (private) server, and the Observatory only — there's no
 consumer-visible change to the published packages, so no version bump is
 warranted yet; they roll into the next release.
 
+### Fixed
+- **`risk_assessments.flags` stored double-encoded** (migration 012): the insert used `${JSON.stringify(flags)}::jsonb`, which postgres.js double-encodes into a JSON *string* scalar instead of an array. `POST /v1/resolve` then spread that string into per-character garbage (a long array of empty `{}` flags) and produced a `NaN`→`null` risk score. Switched the insert to `sql.json(flags)`, hardened the resolve route to ignore non-array stored flags, and added migration 012 to repair existing rows. (Found via end-to-end demo testing.)
+
 ### Internal
 - **Admin two-factor auth (TOTP)** (migration 011): authenticator-app codes (otplib) with hashed one-time recovery codes; the shared secret is AES-256-GCM-encrypted at rest via a new `SCENT_SECRET_KEY` app key (unset = 2FA enrollment disabled, server still runs). Login gains a second-factor step (code or recovery code). Owners can require 2FA install-wide; un-enrolled admins are funneled into setup (login still issues a session, so no lockout). Final PR of the 3-PR admin arc. New env var `SCENT_SECRET_KEY` (`openssl rand -hex 32`) — documented in the deploy runbook + image config.
 - **Admin account management** (Observatory Users page + migration 010): owner-only invite via copy-paste link (opaque single-use token, 7-day expiry, no SMTP) with a public `/accept-invite` flow that auto-logs-in; list/role-change/soft-deactivate; per-project membership grants; self-service password change. Deactivation (`admin_users.is_active`) revokes sessions immediately and blocks login; lockout guards prevent demoting/deactivating yourself or the last active owner. Second of the 3-PR admin arc (TOTP 2FA next).

@@ -69,7 +69,7 @@ export async function assessRisk(sql: Sql, ctx: AssessContext): Promise<RiskAsse
           ${ctx.snapshotId},
           ${score},
           ${band},
-          ${JSON.stringify(flags)}::jsonb
+          ${sql.json(flags as unknown as Parameters<typeof sql.json>[0])}
         )
       `;
 
