@@ -61,6 +61,10 @@ The Observatory has no baked-in API key. After logging in, the project switcher 
 sidebar scopes every data page to the selected project — your admin session authorizes
 the read, so one login can view all projects.
 
+The CLI admin is an **owner**. To add more admins, use the owner-only **Users** page:
+invite by email (you get a copy-paste link, no SMTP needed), set each one's role
+(owner or member) and per-project access, and deactivate accounts when needed.
+
 Verify end to end:
 ```bash
 curl -X POST https://<SCENT_DOMAIN>/v1/resolve \

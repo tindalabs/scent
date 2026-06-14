@@ -6,6 +6,9 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Re-resolve the session from the server — used after accepting an invite, which
+  // logs the new user in via a Set-Cookie the SPA doesn't otherwise observe.
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -31,7 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }): React.React
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  const refresh = useCallback(async () => {
+    setUser(await adminMe());
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

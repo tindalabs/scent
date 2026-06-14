@@ -70,6 +70,7 @@ async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export type AdminRole = 'owner' | 'member';
 
 export interface AdminUser {
+  id: string;
   email: string;
   role: AdminRole;
 }
@@ -116,6 +117,78 @@ export function rotateProjectKey(id: string): Promise<{ apiKey: string }> {
 
 export function deleteProject(id: string): Promise<{ deleted: boolean }> {
   return adminFetch(`/admin/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// --- Account management (owner-only, except the public accept-invite flow) ---------
+
+export interface AdminAccount {
+  id: string;
+  email: string;
+  role: AdminRole;
+  is_active: boolean;
+  last_login_at: string | null;
+  created_at: string;
+}
+
+export interface AdminInvite {
+  id: string;
+  email: string;
+  role: AdminRole;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface ProjectMembership {
+  project_id: string;
+  name: string;
+  role: 'admin' | 'viewer';
+}
+
+export function listUsers(): Promise<{ users: AdminAccount[]; invites: AdminInvite[] }> {
+  return adminFetch('/admin/users');
+}
+
+// Returns the raw invite token once — the caller builds the accept link from it.
+export function inviteUser(email: string, role: AdminRole): Promise<{ invite: AdminInvite; token: string }> {
+  return adminFetch('/admin/users/invite', { method: 'POST', body: JSON.stringify({ email, role }) });
+}
+
+export function updateUser(id: string, patch: { role?: AdminRole; is_active?: boolean }): Promise<{ ok: boolean }> {
+  return adminFetch(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+export function deleteInvite(id: string): Promise<{ deleted: boolean }> {
+  return adminFetch(`/admin/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function listUserProjects(id: string): Promise<{ memberships: ProjectMembership[] }> {
+  return adminFetch(`/admin/users/${encodeURIComponent(id)}/projects`);
+}
+
+export function grantMembership(userId: string, projectId: string, role: 'admin' | 'viewer'): Promise<{ ok: boolean }> {
+  return adminFetch(`/admin/users/${encodeURIComponent(userId)}/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function revokeMembership(userId: string, projectId: string): Promise<{ deleted: boolean }> {
+  return adminFetch(`/admin/users/${encodeURIComponent(userId)}/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean }> {
+  return adminFetch('/admin/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
+}
+
+// Public invite-acceptance flow (no session yet).
+export function getInvite(token: string): Promise<{ email: string; role: AdminRole }> {
+  return adminFetch(`/admin/invites/accept?token=${encodeURIComponent(token)}`);
+}
+
+export function acceptInvite(token: string, password: string): Promise<AdminUser> {
+  return adminFetch('/admin/invites/accept', { method: 'POST', body: JSON.stringify({ token, password }) });
 }
 
 // Types mirroring server responses

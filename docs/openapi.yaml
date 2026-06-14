@@ -488,6 +488,254 @@ paths:
         "403": { $ref: "#/components/responses/CsrfError" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /admin/invites/accept:
+    get:
+      tags: [Admin]
+      summary: Look up a pending invite (public)
+      description: Resolves an invite token so the accept page can show which email it is for.
+      security: []
+      parameters:
+        - { name: token, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The invite's email and role
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string, format: email }
+                  role: { type: string, enum: [owner, member] }
+        "410": { $ref: "#/components/responses/Gone" }
+    post:
+      tags: [Admin]
+      summary: Accept an invite — create the account and log in (public)
+      description: >-
+        Creates the admin with the invited role, marks the (single-use) invite consumed,
+        and sets the session + CSRF cookies. Password must be at least 8 characters.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Account created and logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminIdentity" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "409":
+          description: An account with this email already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "410": { $ref: "#/components/responses/Gone" }
+
+  /admin/me/password:
+    post:
+      tags: [Admin]
+      summary: Change your own password
+      description: >-
+        Verifies the current password, then revokes the user's other sessions (keeps the
+        current one). New password must be at least 8 characters.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403":
+          description: CSRF failure or incorrect current password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List admins and pending invites (owner-only)
+      security: [{ AdminSession: [] }]
+      responses:
+        "200":
+          description: Admin accounts and pending invites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminAccount" }
+                  invites:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminInvite" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users/invite:
+    post:
+      tags: [Admin]
+      summary: Invite a new admin (owner-only)
+      description: >-
+        Mints a single-use, 7-day invite. The raw `token` is returned exactly once; the
+        Observatory builds the accept link from it. Rejected if the email already has an
+        account.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [owner, member], default: member }
+      responses:
+        "201":
+          description: Invite created (token shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invite: { $ref: "#/components/schemas/AdminInvite" }
+                  token: { type: string, description: Shown once. }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: An account with this email already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/users/{id}:
+    patch:
+      tags: [Admin]
+      summary: Change a user's role and/or active status (owner-only)
+      description: >-
+        Guards against changing your own role/status and against removing the last active
+        owner. Deactivating revokes the user's sessions immediately.
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string, enum: [owner, member] }
+                is_active: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/invites/{id}:
+    delete:
+      tags: [Admin]
+      summary: Revoke a pending invite (owner-only)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { type: object, properties: { deleted: { type: boolean } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users/{id}/projects:
+    get:
+      tags: [Admin]
+      summary: A user's per-project grants (owner-only)
+      security: [{ AdminSession: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: The user's project memberships
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  memberships:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProjectMembership" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users/{id}/projects/{projectId}:
+    put:
+      tags: [Admin]
+      summary: Grant or update a member's project access (owner-only)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [admin, viewer] }
+      responses:
+        "200":
+          description: Membership upserted
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Admin]
+      summary: Revoke a member's project access (owner-only)
+      security: [{ AdminSession: [], CsrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { type: object, properties: { deleted: { type: boolean } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -558,6 +806,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     RateLimited:
       description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Gone:
+      description: Invite is invalid, already used, or expired
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -774,3 +1027,37 @@ components:
             The caller's relationship to this project — 'owner' (implicit access to
             all projects) or the member's per-project role ('admin' = manage keys,
             'viewer' = read-only data).
+
+    AdminIdentity:
+      type: object
+      description: The signed-in admin (returned by login / accept-invite / me).
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member] }
+
+    AdminAccount:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member] }
+        is_active: { type: boolean }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    AdminInvite:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member] }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+
+    ProjectMembership:
+      type: object
+      properties:
+        project_id: { type: string, format: uuid }
+        name: { type: string }
+        role: { type: string, enum: [admin, viewer] }
