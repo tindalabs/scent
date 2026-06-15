@@ -79,14 +79,18 @@ jobs:
                                {"Content-Type": "application/json"}))["token"]
           auth = {"Authorization": f"JWT {jwt}"}
 
-          # Page through every tag, newest first; never touch :latest.
-          tags, url = [], f"{api}/repositories/{repo}/tags/?page_size=100&ordering=-last_updated"
+          # Page through every tag (never touch :latest). Don't trust the API's
+          # `ordering` param — Docker Hub returned oldest-first here, which would have
+          # pruned the NEWEST images. Sort newest-first in-code by last_updated.
+          tags, url = [], f"{api}/repositories/{repo}/tags/?page_size=100"
           while url:
               page = json.load(req("GET", url, headers=auth))
-              tags += [t["name"] for t in page["results"] if t["name"] != "latest"]
+              tags += [t for t in page["results"] if t["name"] != "latest"]
               url = page.get("next")
 
-          keep_set, prune = tags[:keep], tags[keep:]
+          tags.sort(key=lambda t: t.get("last_updated") or "", reverse=True)
+          names = [t["name"] for t in tags]
+          keep_set, prune = names[:keep], names[keep:]
           print(f"{len(tags)} sha tags; keeping latest + {len(keep_set)} most recent; "
                 f"{'previewing' if dry else 'deleting'} {len(prune)}")
           failures = 0
