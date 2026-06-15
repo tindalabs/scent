@@ -40,33 +40,38 @@ dashboardRouter.get('/', async (req: Request, res: Response): Promise<void> => {
       GROUP BY d.timestamp::date
       ORDER BY d.timestamp::date ASC
     `,
+    // Average the per-identity confidence_band (high/medium/low/unknown — the
+    // scoreToConfidenceBand vocabulary enforced by chk_confidence_band, NOT the
+    // confirmed/probable/uncertain continuity labels) and map the mean rank back to a
+    // band. Using the wrong vocabulary here made every row fall through to 1, so the
+    // average was always < 1.5 and the card always read "unknown".
     db<{ avg_band: string | null }[]>`
       SELECT
         CASE
           WHEN AVG(
             CASE confidence_band
-              WHEN 'confirmed' THEN 4
-              WHEN 'probable'  THEN 3
-              WHEN 'uncertain' THEN 2
+              WHEN 'high'   THEN 4
+              WHEN 'medium' THEN 3
+              WHEN 'low'    THEN 2
               ELSE 1
             END
-          ) >= 3.5 THEN 'confirmed'
+          ) >= 3.5 THEN 'high'
           WHEN AVG(
             CASE confidence_band
-              WHEN 'confirmed' THEN 4
-              WHEN 'probable'  THEN 3
-              WHEN 'uncertain' THEN 2
+              WHEN 'high'   THEN 4
+              WHEN 'medium' THEN 3
+              WHEN 'low'    THEN 2
               ELSE 1
             END
-          ) >= 2.5 THEN 'probable'
+          ) >= 2.5 THEN 'medium'
           WHEN AVG(
             CASE confidence_band
-              WHEN 'confirmed' THEN 4
-              WHEN 'probable'  THEN 3
-              WHEN 'uncertain' THEN 2
+              WHEN 'high'   THEN 4
+              WHEN 'medium' THEN 3
+              WHEN 'low'    THEN 2
               ELSE 1
             END
-          ) >= 1.5 THEN 'uncertain'
+          ) >= 1.5 THEN 'low'
           ELSE 'unknown'
         END AS avg_band
       FROM identities

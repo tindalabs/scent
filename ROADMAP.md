@@ -513,3 +513,85 @@ signal, SimHash-Hamming coordinated-fraud detectors).
   - [x] **PR2 — account-management UI**: owner-only Users page — invite via copy-paste link (opaque one-time token, no SMTP; public `/accept-invite` auto-logs-in), list/role-change/soft-deactivate (deactivation revokes sessions + blocks login), per-project membership grants, self-service password change. Lockout guards: can't demote/deactivate yourself or the last active owner.
   - [x] **PR3 — 2FA**: TOTP (otplib) + hashed one-time recovery codes; secret AES-256-GCM-encrypted at rest via `SCENT_SECRET_KEY` (unset = enrollment disabled, server still runs); login challenge (code or recovery code); owner-set org-wide "require 2FA" toggle that funnels un-enrolled admins into setup (login still issues a session so there's no lockout). WebAuthn/passkeys = future.
 - **CodeQL exclusions** (`.github/codeql/codeql-config.yml`): `js/missing-rate-limiting` and `js/missing-token-validation` are excluded — they don't recognize the custom Redis limiter or double-submit CSRF (and already mis-flag the existing `/v1` limiter). Revisit if we adopt recognized libraries.
+
+---
+
+## Advisory Backlog — 2026-06-15
+
+Findings from the second full C-level assessment, now spanning **six** specialists (CTO / CPO / COO / CMO / **CFO** / **CSO**) + competitive research. The previous backlog (2026-05-19) was CTO/CPO/COO/CMO/CFO only — this round adds a dedicated security (CSO) review.
+
+**Overall score: 6.9/10** (up from 6.0). The verdict is unchanged in shape: the build and product thinking deserve an 8; distribution and go-to-market still score ~5. The gap is now almost entirely about reach and revenue, not code.
+Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_2026-06-14.md)
+
+### Per-specialist findings
+
+**CTO — 8/10 (technical foundation is load-bearing and solid)**
+- Engine + `pipeline/resolve.ts` praised: DB-side SimHash candidate blocking, idempotent dedup, transaction-correct drift/cluster linking, risk assessment moved outside the tx. Zero TODO/FIXME across the tree.
+- [ ] **Bound/offload candidate scoring** — `resolve.ts` scores every SimHash survivor through `weightedJaccard` in JS, in the request path. Cap fan-out and/or move resolution fully onto the existing BullMQ worker before the hosted tier. This is *latent* debt — it bites under exactly the near-duplicate / bot-farm load Scent targets.
+- [ ] **Plan single-Postgres scaling** — partitioning (snapshots) + read replica before Phase 7. Fine for €4/mo self-host today; it's the system-wide SPOF and scaling ceiling.
+- [ ] Migrate **Express 4 → 5** (also clears the standing `qs` advisory chain).
+
+**CPO — 7/10 (excellent clarity & docs; unproven, no users)**
+- README, OpenAPI contract, migration guide, ADRs, live demo all called out as top-tier. Time-to-value is short.
+- [ ] **Ship a hosted free tier (managed key + Observatory)** — simultaneously the onboarding fix, the feedback loop, and the revenue path. Highest-leverage product move.
+- [ ] **Move project/API-key creation into the Observatory UI** — remove the CLI (`create-project`) step from evaluation.
+- [ ] Add a **GDPR/consent integration guide** + minimal consent gate (turns a buying objection into a differentiator).
+- [ ] Feature gaps flagged: native mobile SDKs (already out-of-scope MVP), analytics-persona dashboards, webhook/alert config UX in Observatory.
+
+**COO — 8/10 (ready to self-host, not yet to operate as a business)**
+- CI gate chain, dual Docker stacks, `deploy/` runbook, and end-to-end OTel tracing all credited.
+- [ ] **Stand up the metrics + alerting + error-tracking triad** (OTel metrics/Prometheus + Sentry) — today an incident's first detector is a user complaint. No metrics pillar, no alerting, no error tracking.
+- [ ] **Automate + test Postgres backups** (WAL archiving / scheduled `pg_dump` + a restore drill) — an untested backup is a hope.
+- [ ] Add **`/ready` + `/live`** (only `/health` exists), **BullMQ queue-depth metrics**, and **Trivy/Grype image scanning** in `publish-docker.yml`.
+- [ ] Confirm `main` branch protection requires green CI + review (not verifiable from the repo).
+
+**CMO — 5/10 (9/10 messaging, ~2/10 reach — the whole problem)**
+- Web search found effectively zero traction (stars/downloads/discussion) for `tindalabs/scent`. Differentiation and the reproducible benchmark are launch-ready assets that have never been put in front of anyone.
+- [ ] **Run one real launch beat** anchored on the benchmark: Show HN + dev.to long-form + r/webdev / r/selfhosted. (Carries over from the 2026-05-19 strategic list — *still the single most overdue action*.)
+- [ ] Record a **2-min demo GIF/video** for the README; publish the **benchmark-methodology post**.
+- [ ] Seed **awesome-lists** (awesome-fraud-detection / -privacy / -selfhosted), **AlternativeTo**, **StackShare**; open **GitHub Discussions + Discord**.
+- [ ] Tighten messaging: name a "who this is NOT for"; drop "behavioral-analytics" from the keywords (unsupported by the fraud-shaped product).
+
+**CFO — 7/10 (low burn, clean IP; revenue unbuilt, bus-factor-1)**
+- Low fixed-cost floor, near-zero debt liability, all inbound deps permissive, intentional BSL moat on the server.
+- [ ] **Convert per-key Redis counters into a metering ledger + ship a thin paid tier** — cheapest path from cost-center to validated revenue; reuses infra already built. (Same as the long-standing "usage metering" item — now framed as the revenue gate.)
+- [ ] **De-risk bus factor = 1** — document the engine's weight/threshold *rationale* + bring in a second maintainer. Dominant operational *and* acquisition risk.
+- [ ] **Verify MaxMind GeoLite2 *data* EULA** (separate from the npm code license) — load at runtime rather than bundling in the redistributed image.
+
+**CSO — 7/10 (genuinely security-literate; privacy is the landmine)**
+- Green flags: SHA-256-only API keys, bcrypt + TOTP 2FA, revocable opaque sessions with selective revocation, double-submit CSRF, zod validation, parameterized SQL throughout, CodeQL + audit gate + OIDC publishing. No committed secrets; `apps/demo/.env.local` confirmed gitignored/untracked. RBAC + 2FA confirmed shipped (migrations 008–011).
+- [ ] **Add HTTP security headers** (`helmet`, or directives in the Caddyfile) — no HSTS/CSP/X-Frame-Options/X-Content-Type-Options today. Minutes of work; top shared CTO+CSO finding.
+- [ ] **Build the GDPR data-lifecycle layer** — documented lawful basis + retention TTL on snapshots, **client-IP minimization** (truncate/hash; currently stored plaintext as `::inet`), and data-subject export/delete. A *product* requirement for a fingerprinting tool, not just compliance hygiene.
+- [ ] **Add a per-admin audit log** of sensitive admin actions (RBAC/2FA/key changes) — SOC2 + GDPR gap (promotes the "admin polish" item to a real requirement).
+- [ ] Resolve the moderate **`qs` ≤6.15.1 DoS** advisory (transitive via Express 4) — Express 5 upgrade or a pnpm override.
+- [ ] (Verify) **sign risk webhooks** (HMAC) so receivers can authenticate delivery.
+
+**Market position — 6/10**
+- Unique 4-way moat (probabilistic + explainable + self-hostable + open-source) that no incumbent (FingerprintJS Pro, ThumbmarkJS, IPQS, SEON) occupies head-on; OTel-native is unique. Headwind: no proven accuracy-at-scale, no native mobile SDKs, no managed offering yet. Tailwind: post-cookie shift to probabilistic ID + tightening 2026 fingerprinting regulation rewards explainable/self-hostable/EU-friendly tools.
+
+### Prioritized rollup
+
+**Immediate (this week)** — high impact, low effort
+- [ ] Add `helmet` / Caddy security headers (CTO + CSO)
+- [ ] Resolve the `qs` advisory (Express 5 or pnpm override)
+- [ ] Add `/ready` + `/live` endpoints
+- [ ] Record a 2-min demo GIF/video + draft the benchmark-methodology post
+
+**Next sprint (1–4 weeks)**
+- [ ] Metrics + alerting + error tracking (OTel metrics + Sentry)
+- [ ] Automate + test Postgres backups
+- [ ] One real launch beat (Show HN + dev.to + subreddits) on the benchmark
+- [ ] Move project/API-key creation into the Observatory UI
+- [ ] Per-admin audit log
+
+**Strategic (1–3 months)**
+- [ ] Hosted free tier + metering ledger (reuse per-key Redis counters) — the revenue path
+- [ ] GDPR data-lifecycle layer (consent, retention TTL, IP minimization, export/delete) — converts the #1 liability into the market wedge
+- [ ] De-risk bus factor: document engine/threshold rationale + add a second maintainer
+- [ ] Postgres partitioning + read replica before scale
+
+**Watch list**
+- **In-JS candidate scoring loop** — alert on `scent.identity_resolution` span p99 > 500ms as cardinality grows; trigger the async-resolution move when it degrades.
+- **OSS accuracy bar** — ThumbmarkJS ~80% publicly; keep the benchmark current or the headline ages.
+- **MaxMind GeoLite2 data EULA** — verify before redistributing the data in the published image.
+- **2026 fingerprinting/consent regulation** — the anti-fraud carve-out is the load-bearing legal assumption of the whole product.

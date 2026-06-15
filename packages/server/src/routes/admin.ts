@@ -1,4 +1,4 @@
-import { Router, type Request, type Response, type IRouter } from 'express';
+import { Router, type Request, type Response, type IRouter, type CookieOptions } from 'express';
 import { z } from 'zod';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
@@ -16,6 +16,7 @@ import { createInvite, findValidInvite, markInviteAccepted } from '../admin/invi
 import { requireAdmin } from '../admin/middleware.js';
 import { requireOwner, canManageProject } from '../admin/authz.js';
 import { issueCsrfToken, clearCsrfToken, requireCsrf } from '../admin/csrf.js';
+import { cookieSecure } from '../admin/cookies.js';
 import { generateTotpSecret, totpKeyUri, verifyTotp, generateRecoveryCodes, hashRecoveryCode } from '../admin/totp.js';
 import { encrypt, decrypt, isEncryptionConfigured } from '../admin/crypto.js';
 import { isTwoFactorRequired, setTwoFactorRequired } from '../admin/settings.js';
@@ -23,17 +24,18 @@ import { enforce2faEnrollment } from '../admin/enforce-2fa.js';
 
 export const adminRouter: IRouter = Router();
 
-const isProd = process.env['NODE_ENV'] === 'production';
-
 // HttpOnly so JS can't read it; SameSite=Lax blocks cross-site POST (CSRF) while
-// allowing same-site navigation; Secure in production (HTTPS).
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  secure: isProd,
-  maxAge: SESSION_MAX_AGE_MS,
-  path: '/',
-};
+// allowing same-site navigation; Secure when the request is HTTPS (see cookieSecure),
+// so production stays Secure while the plain-HTTP localhost dev stack still works.
+function sessionCookieOptions(req: Request): CookieOptions {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: cookieSecure(req),
+    maxAge: SESSION_MAX_AGE_MS,
+    path: '/',
+  };
+}
 
 // Per-IP login throttle to blunt brute force: 10 attempts / minute.
 const LOGIN_WINDOW_SECONDS = 60;
@@ -127,8 +129,8 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
 
   const token = await createSession(user.id);
   await db`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
-  res.cookie(SESSION_COOKIE, token, cookieOptions);
-  issueCsrfToken(res); // double-submit token for subsequent mutations
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req));
+  issueCsrfToken(req, res); // double-submit token for subsequent mutations
   const mustEnroll = !user.totp_enabled && (await isTwoFactorRequired());
   res.json({ id: user.id, email, role: user.role, totpEnabled: user.totp_enabled, mustEnroll });
 });
@@ -136,8 +138,8 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
 adminRouter.post('/logout', requireCsrf, async (req: Request, res: Response): Promise<void> => {
   const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
   if (token) await deleteSession(token);
-  res.clearCookie(SESSION_COOKIE, { ...cookieOptions, maxAge: undefined });
-  clearCsrfToken(res);
+  res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(req), maxAge: undefined });
+  clearCsrfToken(req, res);
   res.json({ ok: true });
 });
 
@@ -189,8 +191,8 @@ adminRouter.post('/invites/accept', async (req: Request, res: Response): Promise
   await markInviteAccepted(invite.id);
 
   const token = await createSession(user.id);
-  res.cookie(SESSION_COOKIE, token, cookieOptions);
-  issueCsrfToken(res);
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req));
+  issueCsrfToken(req, res);
   const mustEnroll = await isTwoFactorRequired();
   res.status(201).json({ id: user.id, email: invite.email, role: invite.role, totpEnabled: false, mustEnroll });
 });

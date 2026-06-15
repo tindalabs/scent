@@ -80,83 +80,96 @@ export async function resolveSnapshot(
       const signalHash = simHashToHex(simHash);
       const simHashInt = simHashToInt64(simHash);
 
-      // Candidate retrieval: pre-filter in the database on the denormalized
-      // latest_signal_hash, returning only identities whose SimHash is within the
-      // Hamming threshold (bit_count of the XOR). The full signals/profile of just
-      // those survivors are pulled via LATERAL — we no longer marshal every
-      // identity's signals into the server. Same recall as the old JS pre-filter.
-      const candidates = await db<{
-        identity_id: string;
-        timestamp: Date;
-        signals: SignalMap;
-        signal_profile: SignalProfile;
-      }[]>`
-        SELECT i.id AS identity_id, latest.timestamp, latest.signals, i.signal_profile
-        FROM identities i
-        JOIN LATERAL (
-          SELECT signals, timestamp
-          FROM snapshots
-          WHERE identity_id = i.id
-          ORDER BY timestamp DESC
-          LIMIT 1
-        ) latest ON true
-        WHERE i.project_id = ${projectId}
-          AND i.latest_signal_hash IS NOT NULL
-          AND bit_count((i.latest_signal_hash # ${simHashInt.toString()}::bigint)::bit(64)) <= ${SIMHASH_CANDIDATE_THRESHOLD}
-      `;
+      // Decision + write happen inside one transaction guarded by a per-fingerprint
+      // advisory lock. Without it, concurrent ingest jobs for an identical brand-new
+      // device each run their candidate lookup before any sibling commits, all miss,
+      // and fan out into duplicate "new" identities (orphaned rows: snapshot_count=0,
+      // band 'unknown'). With it, the second job blocks until the first commits, so its
+      // candidate query then sees the new identity and matches it. Distinct fingerprints
+      // lock on distinct keys and still resolve in parallel; the lock auto-releases at
+      // COMMIT/ROLLBACK.
+      const lockKey = `${projectId}|${signalHash}`;
 
-      // Score every candidate that survived the DB pre-filter.
-      const scored: Array<{ identityId: string; confidence: number }> = [];
-
-      for (const candidate of candidates) {
-        const daysSince =
-          (new Date(snap.timestamp).getTime() - new Date(candidate.timestamp).getTime()) /
-          (1000 * 60 * 60 * 24);
-
-        const weightOverrides = absenceWeightOverrides(candidate.signal_profile);
-
-        const { confidence } = weightedJaccard(signals, candidate.signals, {
-          daysSinceLastObservation: daysSince,
-          weightOverrides,
-        });
-
-        scored.push({ identityId: candidate.identity_id, confidence });
-      }
-
-      // Sort descending by confidence.
-      scored.sort((a, b) => b.confidence - a.confidence);
-
-      const best = scored[0];
-      const secondBest = scored[1];
-
-      const isNew = !best || best.confidence < 0.35;
-      const resolvedId = isNew ? snap.identityId : best.identityId;
-      const finalConfidence = isNew ? 0 : best.confidence;
-
-      // Flag ambiguous matches: two candidates both above the ambiguity threshold.
-      const ambiguous =
-        !isNew &&
-        secondBest !== undefined &&
-        secondBest.confidence >= AMBIGUOUS_MATCH_THRESHOLD;
-
-      const continuity = scoreToIdentityContinuity(finalConfidence);
-      const confidenceBand = scoreToConfidenceBand(finalConfidence);
-
-      // Look up the stored signal_profile for the resolved identity (may be new).
-      const storedProfile = isNew
-        ? {}
-        : ((
-            await db<{ signal_profile: SignalProfile }[]>`
-              SELECT signal_profile FROM identities WHERE id = ${resolvedId} LIMIT 1
-            `
-          )[0]?.signal_profile ?? {});
-
-      const updatedProfile = updateSignalProfile(storedProfile, signals, snap.timestamp);
-
-      // newSnapId is set inside the transaction and read outside to run risk assessment.
+      // Assigned inside the transaction, read afterwards for the response, span
+      // attributes, and the out-of-band risk assessment.
+      let isNew = true;
+      let resolvedId = snap.identityId;
+      let finalConfidence = 0;
+      let ambiguous = false;
       let newSnapId: string | null = null;
 
       await db.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+
+        // Candidate retrieval: pre-filter on the denormalized latest_signal_hash,
+        // returning only identities whose SimHash is within the Hamming threshold
+        // (bit_count of the XOR); survivors' signals/profile come via LATERAL. Runs
+        // inside the lock so it observes a sibling identity committed a moment earlier.
+        const candidates = await tx<{
+          identity_id: string;
+          timestamp: Date;
+          signals: SignalMap;
+          signal_profile: SignalProfile;
+        }[]>`
+          SELECT i.id AS identity_id, latest.timestamp, latest.signals, i.signal_profile
+          FROM identities i
+          JOIN LATERAL (
+            SELECT signals, timestamp
+            FROM snapshots
+            WHERE identity_id = i.id
+            ORDER BY timestamp DESC
+            LIMIT 1
+          ) latest ON true
+          WHERE i.project_id = ${projectId}
+            AND i.latest_signal_hash IS NOT NULL
+            AND bit_count((i.latest_signal_hash # ${simHashInt.toString()}::bigint)::bit(64)) <= ${SIMHASH_CANDIDATE_THRESHOLD}
+        `;
+
+        // Score every candidate that survived the DB pre-filter.
+        const scored: Array<{ identityId: string; confidence: number }> = [];
+        for (const candidate of candidates) {
+          const daysSince =
+            (new Date(snap.timestamp).getTime() - new Date(candidate.timestamp).getTime()) /
+            (1000 * 60 * 60 * 24);
+          const weightOverrides = absenceWeightOverrides(candidate.signal_profile);
+          const { confidence } = weightedJaccard(signals, candidate.signals, {
+            daysSinceLastObservation: daysSince,
+            weightOverrides,
+          });
+          scored.push({ identityId: candidate.identity_id, confidence });
+        }
+        scored.sort((a, b) => b.confidence - a.confidence);
+
+        const best = scored[0];
+        const secondBest = scored[1];
+
+        // A confident best match flips the new-identity defaults set above; otherwise
+        // this stays a new identity keyed on the SDK-provided id. The `if` also narrows
+        // `best` to defined for the field reads.
+        if (best && best.confidence >= 0.35) {
+          isNew = false;
+          resolvedId = best.identityId;
+          finalConfidence = best.confidence;
+        }
+
+        // Flag ambiguous matches: two candidates both above the ambiguity threshold.
+        ambiguous =
+          !isNew &&
+          secondBest !== undefined &&
+          secondBest.confidence >= AMBIGUOUS_MATCH_THRESHOLD;
+
+        const confidenceBand = scoreToConfidenceBand(finalConfidence);
+
+        // Look up the stored signal_profile for the resolved identity (may be new).
+        const storedProfile = isNew
+          ? {}
+          : ((
+              await tx<{ signal_profile: SignalProfile }[]>`
+                SELECT signal_profile FROM identities WHERE id = ${resolvedId} LIMIT 1
+              `
+            )[0]?.signal_profile ?? {});
+        const updatedProfile = updateSignalProfile(storedProfile, signals, snap.timestamp);
+
         if (isNew) {
           await tx`
             INSERT INTO identities (id, project_id, confidence_band, risk_band, signal_profile, latest_signal_hash)
@@ -217,6 +230,8 @@ export async function resolveSnapshot(
           await linkToCluster(tx, projectId, resolvedId, secondBest.identityId, secondBest.confidence);
         }
       });
+
+      const continuity = scoreToIdentityContinuity(finalConfidence);
 
       // Risk assessment runs outside the identity transaction so its DB writes
       // don't block the commit, and a detector failure can't roll back the snapshot.
