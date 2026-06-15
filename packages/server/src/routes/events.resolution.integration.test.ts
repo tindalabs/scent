@@ -149,3 +149,29 @@ describe.skipIf(!hasDb)('resolution decision: cluster linking', () => {
     expect(rows[0]!.cluster_id).toBe(rows[1]!.cluster_id); // both assigned to the same cluster
   });
 });
+
+describe.skipIf(!hasDb)('resolution decision: concurrent identical snapshots', () => {
+  beforeAll(clearIdentities);
+
+  it('collapses concurrent identical observations of a brand-new device into ONE identity', async () => {
+    // Two identical-signal snapshots (distinct SDK ids) resolved at the same time. The
+    // per-fingerprint advisory lock must serialize them so the second sees the first's
+    // committed identity and matches it — instead of both racing past an empty
+    // candidate set into separate "new" identities (the duplicate-orphan bug that left
+    // snapshot_count=0 / band 'unknown' rows).
+    const UNIQUE = { ...C, 'canvas.2d': 'concurrency-canvas-XYZ', 'audio.hash': 'concurrency-audio-XYZ' };
+
+    const [r1, r2] = await Promise.all([resolve(UNIQUE), resolve(UNIQUE)]);
+
+    expect(new Set([r1.identityId, r2.identityId]).size).toBe(1); // both resolved to one id
+    expect([r1.isNew, r2.isNew].filter(Boolean)).toHaveLength(1); // exactly one created it
+
+    // And the store holds a single identity for this fingerprint — no orphan duplicate.
+    const hash = simHashToHex(computeSimHash(UNIQUE));
+    const idents = await db<{ id: string }[]>`
+      SELECT DISTINCT identity_id AS id FROM snapshots
+      WHERE project_id = ${projectId} AND signal_hash = ${hash}
+    `;
+    expect(idents).toHaveLength(1);
+  });
+});
