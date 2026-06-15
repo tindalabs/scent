@@ -38,7 +38,7 @@ docker run \
   node --import ./dist/tracing.js dist/worker.js
 ```
 
-Run at least one server (web) and one worker against the same Postgres + Redis.
+Run at least one server (web) and one worker against the same Postgres + Redis. The worker's job concurrency defaults to 5 — tune it with `WORKER_CONCURRENCY`.
 
 ## Configuration
 
@@ -47,10 +47,13 @@ Run at least one server (web) and one worker against the same Postgres + Redis.
 | `DATABASE_URL` | yes | PostgreSQL connection string (PG 14+) |
 | `REDIS_URL` | yes | Redis connection string (queue + cache + rate limiter) |
 | `PORT` | no | HTTP port (default `3000`) |
+| `WORKER_CONCURRENCY` | no | Ingest-worker job concurrency (default `5`; ignored by the web process) |
 | `CORS_ALLOWED_ORIGINS` | no | Comma-separated production origins allowed by CORS |
 | `SCENT_SECRET_KEY` | no | App key (`openssl rand -hex 32`) that encrypts admin TOTP/2FA secrets at rest. Unset = 2FA enrollment disabled (server still runs) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP collector endpoint for traces |
+| `OTEL_SERVICE_NAME` | no | Service name reported on traces (default `scent-server`) |
 | `OTEL_SDK_DISABLED` | no | Set `true` to disable OpenTelemetry export |
+| `LOG_LEVEL` | no | pino log level: `trace`–`fatal` or `silent` (default `info`) |
 | `GEOIP_DB_PATH` | no | Path to a City-level GeoIP `.mmdb` (with lat/lon) to enable impossible-travel detection; unset = signal disabled |
 | `GEOIP_ANONYMOUS_DB_PATH` | no | Path to an Anonymous-IP `.mmdb` (hosting/VPN/Tor/proxy) to enable the anonymizer/datacenter signal; unset = disabled |
 | `GEOIP_ASN_DB_PATH` | no | Path to an ASN `.mmdb` (e.g. GeoLite2-ASN); enriches the anonymizer reason with the network operator |
