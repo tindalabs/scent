@@ -60,21 +60,3 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/scent-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # Keep the Docker Hub repository "About" box in sync with the source of truth
-      # (packages/server/DOCKERHUB.md) on every push to main, so it can't drift.
-      # DOCKERHUB_TOKEN must be a PAT with permission to edit the repo description
-      # (the image-push scope alone returns 403 here); the step is skipped when the
-      # Docker Hub secrets aren't configured, like the push steps above.
-      # Best-effort: a failed/forbidden description sync must never fail the image
-      # publish, so it's marked continue-on-error (shows as a warning, not a failure).
-      - name: Sync Docker Hub description
-        if: ${{ env.DOCKERHUB_USERNAME != '' }}
-        continue-on-error: true
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.DOCKERHUB_USERNAME }}/scent-server
-          readme-filepath: packages/server/DOCKERHUB.md
-          short-description: "Probabilistic identity continuity & fraud-signal server - drift-tolerant, self-hostable."

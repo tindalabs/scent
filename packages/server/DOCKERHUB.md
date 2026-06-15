@@ -1,3 +1,8 @@
+<!--
+  Source of truth for the Docker Hub repository description. NOT auto-synced from CI:
+  Docker Hub's description API rejects Personal Access Tokens, so paste this file into
+  the repo's "About" box by hand after editing. See .github/workflows/publish-docker.yml.
+-->
 # Scent Server
 
 **Probabilistic identity continuity & fraud-signal server.** Scent tracks whether a returning visitor is "likely the same entity" even after cookie deletion, VPN changes, browser updates, or anti-fingerprinting tools — using a drift-tolerant confidence-scoring engine, not deterministic hashes.
