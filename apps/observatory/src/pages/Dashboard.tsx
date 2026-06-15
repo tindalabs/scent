@@ -35,10 +35,12 @@ function MetricCard({
   );
 }
 
+// confidence_band vocabulary (high/medium/low/unknown) — matches the per-identity
+// Confidence column in IdentityList and what the /dashboard avgConfidenceBand returns.
 const CONF_VARIANT: Record<string, BadgeProps['variant']> = {
-  confirmed: 'confirmed',
-  probable: 'probable',
-  uncertain: 'uncertain',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
   unknown: 'unknown',
 };
 
