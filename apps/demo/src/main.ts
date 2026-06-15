@@ -27,6 +27,71 @@ const sdk = init({
 
 const bridge = new ScentOtelBridge(sdk);
 
+const API_BASE = import.meta.env['VITE_API_BASE'] ?? 'http://localhost:3000/v1';
+const API_KEY = import.meta.env['VITE_API_KEY'] ?? 'demo-api-key-dev';
+
+interface ServerResult {
+  identityId: string | null;
+  confidence: number;
+  isNew: boolean;
+  continuity: string;
+  risk: { score: number; band: string; flags: { label: string; reason: string }[] };
+}
+
+// POST /v1/resolve — the synchronous "assess this snapshot" check (does not persist).
+// Returns null if the server is unreachable or errors, so the caller can fall back to
+// the local observation.
+async function postResolve(signals: Record<string, unknown>): Promise<ServerResult | null> {
+  const tp = readTraceparent(); // W3C trace header so the server span links to this trace
+  const response = await fetch(`${API_BASE}/resolve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': API_KEY,
+      ...(tp ? { traceparent: tp } : {}),
+    },
+    body: JSON.stringify({ signals }),
+  });
+  if (!response.ok) return null;
+  const data = await response.json() as {
+    identityId: string | null;
+    confidence: number;
+    isNew: boolean;
+    continuity: string;
+    risk: { score: number; band: string; flags: { code: string; label: string; reason: string }[] };
+  };
+  return {
+    identityId: data.identityId,
+    confidence: data.confidence,
+    isNew: data.isNew,
+    continuity: data.continuity,
+    risk: {
+      score: data.risk.score,
+      band: data.risk.band,
+      // Keep label + reason (reason becomes the chip tooltip). Drop malformed entries
+      // so they can't render as "undefined" chips.
+      flags: data.risk.flags.filter((f) => Boolean(f.label)).map((f) => ({ label: f.label, reason: f.reason })),
+    },
+  };
+}
+
+// Ingest is asynchronous: sdk.flush() only *enqueues* the snapshot — the worker commits
+// it to the identity store a moment later. Poll /v1/resolve until the just-flushed
+// observation becomes matchable (isNew flips false), so the next Observe click resolves
+// against committed history and recognises the device instead of seeing it as new
+// again. Bounded (~4s) so a stopped worker or unreachable server can't hang the UI.
+async function waitForCommit(signals: Record<string, unknown>): Promise<void> {
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 350));
+    try {
+      const r = await postResolve(signals);
+      if (r && !r.isNew) return;
+    } catch {
+      return; // server unreachable — don't block the UI
+    }
+  }
+}
+
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const btnObserve = document.getElementById('btn-observe') as HTMLButtonElement;
 const btnClear   = document.getElementById('btn-clear') as HTMLButtonElement;
@@ -103,55 +168,11 @@ btnObserve.addEventListener('click', () => {
       // returns identity + confidence + risk without persisting. We then sdk.flush()
       // (POST /v1/events, fire-and-forget) to commit the observation so it shows up in
       // the Observatory. Resolve-then-flush mirrors the "check, then commit" flow.
-      let serverResult: {
-        identityId: string | null;
-        confidence: number;
-        isNew: boolean;
-        continuity: string;
-        risk: { score: number; band: string; flags: { label: string; reason: string }[] };
-      } | null = null;
+      let serverResult: ServerResult | null = null;
 
       try {
-        const tp = readTraceparent();
-        const response = await fetch(
-          `${import.meta.env['VITE_API_BASE'] ?? 'http://localhost:3000/v1'}/resolve`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Api-Key': import.meta.env['VITE_API_KEY'] ?? 'demo-api-key-dev',
-              // W3C trace header so the server span links to this browser trace.
-              ...(tp ? { traceparent: tp } : {}),
-            },
-            body: JSON.stringify({ signals }),
-          },
-        );
-
-        if (response.ok) {
-          const data = await response.json() as {
-            identityId: string | null;
-            confidence: number;
-            isNew: boolean;
-            continuity: string;
-            risk: { score: number; band: string; flags: { code: string; label: string; reason: string }[] };
-          };
-          serverResult = {
-            identityId: data.identityId,
-            confidence: data.confidence,
-            isNew: data.isNew,
-            continuity: data.continuity,
-            risk: {
-              score: data.risk.score,
-              band: data.risk.band,
-              // Keep label + reason (reason becomes the chip tooltip). Drop malformed
-              // entries so they can't render as "undefined" chips.
-              flags: data.risk.flags
-                .filter((f) => Boolean(f.label))
-                .map((f) => ({ label: f.label, reason: f.reason })),
-            },
-          };
-        }
-
+        // Synchronous "check": assess this snapshot against committed history.
+        serverResult = await postResolve(signals);
         // Commit the observation to history (async ingest). Populates the Observatory.
         await sdk.flush();
       } catch {
@@ -205,12 +226,18 @@ btnObserve.addEventListener('click', () => {
       traceparentEl.textContent = tp ? tp.slice(0, 55) + '…' : 'none (OTel span inactive)';
 
       resultCard.style.display = 'block';
-      setStatus(
-        resolved.isNew
-          ? 'New identity created.'
-          : `Returning identity — confidence ${Math.round(resolved.confidence * 100)}%.`,
-        'success',
-      );
+      if (!resolved.isNew) {
+        setStatus(`Returning identity — confidence ${Math.round(resolved.confidence * 100)}%.`, 'success');
+      } else if (serverResult) {
+        // A genuine first sight. Ingest is async (flush only enqueued), so wait out the
+        // commit before re-enabling Observe — otherwise a quick second click resolves
+        // before the worker persists this one and the device looks "new" again.
+        setStatus('New identity created — committing to history…', 'loading');
+        await waitForCommit(signals);
+        setStatus('New identity committed — click Observe again to see it recognised.', 'success');
+      } else {
+        setStatus('New identity created (local fallback — server unreachable).', 'success');
+      }
     } catch (err) {
       setStatus(String(err instanceof Error ? err.message : err), 'error');
     } finally {
