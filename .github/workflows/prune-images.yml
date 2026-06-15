@@ -1,0 +1,104 @@
+name: Prune old images
+
+# Every merge to main publishes scent-server:latest + scent-server:<sha> to GHCR and
+# Docker Hub (see publish-docker.yml). Pre-release that per-commit churn accumulates
+# fast. This job keeps :latest plus the KEEP most-recent <sha> tags on both registries
+# and prunes the rest, so the tag lists stay legible and the pullable stale-image
+# surface stays small — without losing recent rollback points.
+#
+# Destructive. Run it manually first (Actions -> Prune old images -> Run workflow) with
+# dry_run=true to preview deletions and confirm token permissions BEFORE trusting the
+# weekly schedule. Scheduled runs always prune for real.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # weekly, Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview deletions without deleting'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write # delete GHCR versions via GITHUB_TOKEN
+
+env:
+  # Most-recent <sha> tags to retain besides :latest.
+  KEEP: '10'
+  # Hoisted so the Docker Hub step can gate on it in `if:` (env is available there;
+  # secrets are not). Mirrors publish-docker.yml.
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      # GHCR: GITHUB_TOKEN can delete versions of a repo-linked package. If this 403s,
+      # link the package to this repo with write access in the package's settings.
+      - name: Prune GHCR
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          packages: scent-server
+          owner: ${{ github.repository_owner }}
+          keep-n-tagged: ${{ env.KEEP }}
+          exclude-tags: latest
+          delete-untagged: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Docker Hub: no native retention on the free tier, so prune via the API. Needs
+      # DOCKERHUB_TOKEN to be a PAT scoped Read/Write/Delete. continue-on-error so a
+      # permissions/API issue degrades to a warning instead of failing the schedule
+      # (the description API rejects PATs outright; tag deletion is expected to work
+      # with delete scope, but we don't let an unexpected 403 break the run).
+      - name: Prune Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        continue-on-error: true
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REPO: ${{ secrets.DOCKERHUB_USERNAME }}/scent-server
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+
+          user, token = os.environ["DOCKERHUB_USERNAME"], os.environ["DOCKERHUB_TOKEN"]
+          repo, keep, dry = os.environ["REPO"], int(os.environ["KEEP"]), os.environ["DRY_RUN"] == "true"
+          api = "https://hub.docker.com/v2"
+
+          def req(method, url, data=None, headers=None):
+              r = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+              return urllib.request.urlopen(r, timeout=30)
+
+          # PAT works as the password for login; the JWT it returns can list/delete tags
+          # when the token carries delete scope.
+          body = json.dumps({"username": user, "password": token}).encode()
+          jwt = json.load(req("POST", f"{api}/users/login", body,
+                               {"Content-Type": "application/json"}))["token"]
+          auth = {"Authorization": f"JWT {jwt}"}
+
+          # Page through every tag, newest first; never touch :latest.
+          tags, url = [], f"{api}/repositories/{repo}/tags/?page_size=100&ordering=-last_updated"
+          while url:
+              page = json.load(req("GET", url, headers=auth))
+              tags += [t["name"] for t in page["results"] if t["name"] != "latest"]
+              url = page.get("next")
+
+          keep_set, prune = tags[:keep], tags[keep:]
+          print(f"{len(tags)} sha tags; keeping latest + {len(keep_set)} most recent; "
+                f"{'previewing' if dry else 'deleting'} {len(prune)}")
+          failures = 0
+          for tag in prune:
+              if dry:
+                  print(f"  would delete {tag}"); continue
+              try:
+                  req("DELETE", f"{api}/repositories/{repo}/tags/{tag}/", headers=auth)
+                  print(f"  deleted {tag}")
+              except urllib.error.HTTPError as e:
+                  failures += 1
+                  print(f"  FAILED {tag}: {e.code} {e.reason}")
+          if failures:
+              sys.exit(f"{failures} tag deletion(s) failed — check the DOCKERHUB_TOKEN scope (needs Delete)")
+          PY
