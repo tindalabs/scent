@@ -1129,7 +1129,7 @@ components:
         totalIdentities: { type: integer }
         newToday: { type: integer }
         highRiskCount: { type: integer }
-        avgConfidenceBand: { type: string }
+        avgConfidenceBand: { $ref: "#/components/schemas/ConfidenceBand" }
         riskDistribution:
           type: array
           items:
