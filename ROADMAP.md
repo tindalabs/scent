@@ -633,3 +633,34 @@ key-gated regardless of origin.
 - [ ] Defensively register `tindalabs.com` and 301 → `.dev` (invoice/email reputation, squatter defense)
 - [ ] DNS for the hosted box: `api.scent` (and `app.scent` once the Observatory is in the deploy compose) A/AAAA → Hetzner IP; Caddy issues TLS on first boot
 - [ ] Add the Observatory to `deploy/docker-compose.yml` (the production stack currently ships server + worker + Postgres + Redis + Caddy only — no UI) before `app.scent` can serve
+
+---
+
+## Consent & data-lifecycle workstream — decided 2026-06-16 ([ADR-0004](docs/adr/0004-consent-and-data-lifecycle.md))
+
+Consolidates the previously-scattered GDPR items (CPO "consent guide + gate", CSO
+"data-lifecycle layer") into one workstream. **Principle: the customer is the data
+controller; the SDK *enforces* consent (privacy-by-default, fail-closed) but never
+*triggers* it — no banner in core. The controller declares the lawful basis; the SDK
+records and forwards it.** See ADR-0004 for the legal reasoning (ePrivacy 5(3) device
+access vs GDPR lawful basis; the "strictly necessary" security carve-out).
+
+**Committed v1 scope** (decided with user — TCF certification niceties + the playground UI deferred):
+
+SDK (client):
+- [ ] Privacy-by-default gate: collection + persistence + transmission OFF until consent; `observe()` and all storage layers no-op when closed (fail-closed). Default-on.
+- [ ] Lawful-basis declaration `basis: 'consent' | 'legitimate_interest' | 'strictly_necessary'` (default `consent`); recorded + forwarded, not adjudicated by the SDK.
+- [ ] CMP adapters: IAB TCF v2 (`__tcfapi`), Google Consent Mode (`gtag('consent')`), generic resolver callback `consent: () => boolean | Promise<boolean>`.
+- [ ] Gate the persistence/resurrection layers (localStorage/sessionStorage/IndexedDB/cookie/ETag), not just the network — composes with the ADR-0002 PersistencePolicy.
+- [ ] `scent.forget()` (purge all local layers + surface identity id) and `scent.setConsent(false)` (revoke forward collection); `consent_changed` event.
+
+Server (lifecycle + accountability):
+- [ ] Consent provenance per snapshot: `lawful_basis`, `consent_version`, `consented_at` (SDK forwards; stored immutably alongside the snapshot — GDPR Art. 7(1)).
+- [ ] Client-IP minimization by default (truncate/hash; full IP only behind an explicit, documented project setting) — replaces today's plaintext `::inet` in `pipeline/resolve.ts`.
+- [ ] Per-project retention TTL + sweeper job deleting expired snapshots/identities.
+- [ ] Data-subject endpoints: `DELETE /v1/identity/:id` (Art. 17, cascading) + `GET /v1/identity/:id/export` (Art. 20).
+
+Docs:
+- [ ] "GDPR & consent integration guide" — CMP wiring per basis, controller/processor split, DPA template (turns the buying objection into a differentiator).
+
+**Deferred** (follow-up workstream): IAB TCF vendor registration/certification, the separate consented "identity playground" UI (public LiveStack stays client-only regardless).
