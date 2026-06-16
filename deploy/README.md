@@ -92,10 +92,23 @@ docker compose pull && docker compose up -d
 docker compose up -d --scale scent-worker=3
 ```
 
-**Back up Postgres** (cron this, ship off-box):
+**Back up Postgres.** Two scripts ship in this directory:
+
 ```bash
-docker compose exec -T postgres pg_dump -U scent scent | gzip > scent-$(date +%F).sql.gz
+./backup.sh          # pg_dump -Fc into ~/scent-backups, validates + rotates (14d)
+./restore-drill.sh   # restore the latest dump into a throwaway container + verify
 ```
+
+Cron them (a backup you never restore is a hope, not a backup):
+```cron
+30 3 * * *  /home/<user>/scent-deploy/backup.sh        >> ~/scent-backups/backup.log 2>&1
+0  4 * * 0  /home/<user>/scent-deploy/restore-drill.sh >> ~/scent-backups/restore-drill.log 2>&1
+```
+
+Both honor `BACKUP_DIR` / `RETAIN_DAYS` env overrides. **These dumps land on the same
+host** — for disaster recovery (whole-box loss) also enable off-box backups: Hetzner's
+automated VM snapshots are the no-credentials option; restic → Storage Box / S3 is the
+granular one.
 
 **Durability note:** queued-but-unprocessed ingest jobs live in Redis (AOF
 persistence is enabled here). Combined with the `event_id` dedupe in the worker,

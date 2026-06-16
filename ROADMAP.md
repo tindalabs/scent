@@ -541,7 +541,7 @@ Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_20
 **COO — 8/10 (ready to self-host, not yet to operate as a business)**
 - CI gate chain, dual Docker stacks, `deploy/` runbook, and end-to-end OTel tracing all credited.
 - [ ] **Stand up the metrics + alerting + error-tracking triad** (OTel metrics/Prometheus + Sentry) — today an incident's first detector is a user complaint. No metrics pillar, no alerting, no error tracking.
-- [ ] **Automate + test Postgres backups** (WAL archiving / scheduled `pg_dump` + a restore drill) — an untested backup is a hope.
+- [~] **Automate + test Postgres backups** — DONE on scent-prod (2026-06-16): cron daily `pg_dump -Fc` + 14-day rotation, *plus* a weekly automated restore drill (restores the latest dump into a throwaway tmpfs container and verifies schema + row counts). Backup/restore scripts live in `~/scent-deploy/`. **Remaining:** the dumps are still *on-box* — ship them off-box for true DR (Hetzner automated snapshots cover whole-box loss with no tokens; restic→Storage Box/S3 covers granular off-box). WAL archiving / PITR is the heavier follow-up.
 - [ ] Add **`/ready` + `/live`** (only `/health` exists), **BullMQ queue-depth metrics**, and **Trivy/Grype image scanning** in `publish-docker.yml`.
 - [ ] Confirm `main` branch protection requires green CI + review (not verifiable from the repo).
 
@@ -579,7 +579,7 @@ Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_20
 
 **Next sprint (1–4 weeks)**
 - [ ] Metrics + alerting + error tracking (OTel metrics + Sentry)
-- [ ] Automate + test Postgres backups
+- [~] Automate + test Postgres backups — scheduled `pg_dump` + weekly restore drill live on scent-prod; off-box shipping still pending (see COO finding above)
 - [ ] One real launch beat (Show HN + dev.to + subreddits) on the benchmark
 - [ ] Move project/API-key creation into the Observatory UI
 - [ ] Per-admin audit log
@@ -595,3 +595,41 @@ Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_20
 - **OSS accuracy bar** — ThumbmarkJS ~80% publicly; keep the benchmark current or the headline ages.
 - **MaxMind GeoLite2 data EULA** — verify before redistributing the data in the published image.
 - **2026 fingerprinting/consent regulation** — the anti-fraud carve-out is the load-bearing legal assumption of the whole product.
+
+---
+
+## Deployment & domain architecture — decided 2026-06-16
+
+Tindalabs is a **three-product house**: Scent (this repo — the only product with a
+backend / hosted tier), plus the client-only MIT SDKs **Shield** (browser tamper
+detection) and **Blindspot** (OTel-native frontend observability). The company domain is
+**`tindalabs.dev`** — already the de-facto choice: the landing/LiveStack repo is named
+`tindalabs.dev` and every SDK README points its live demo there.
+
+**Decision: company-first, products as subdomains.** Scent does not get its own apex.
+
+| Host | Serves |
+|---|---|
+| `tindalabs.dev` | Landing page + LiveStack demo (move off the GitHub Pages project path onto the custom domain) |
+| `docs.tindalabs.dev` | Shared SDK docs |
+| `app.scent.tindalabs.dev` | Hosted Scent — Observatory + admin login |
+| `api.scent.tindalabs.dev` | Hosted Scent — ingestion / resolve API |
+
+**Rationale:** only one product has a server today, so a second apex (separate TLS,
+SPF/DKIM/DMARC, cookie domain) buys complexity with no payoff; subdomains match the
+demos/badges/landing already built; and it leaves room for an `auth.tindalabs.dev` SSO
+layer if Shield/Blindspot ever grow hosted dashboards.
+
+**Cookie isolation (load-bearing for a security product):** scope the admin
+session/CSRF cookies to the *exact host* — no `Domain` attribute; prefer the `__Host-`
+prefix (which forbids `Domain` and forces `Secure` + `path=/`) — so Scent's admin cookie
+can never leak to a future `shield.tindalabs.dev`. Never set a cookie on the bare
+`.tindalabs.dev` apex until a deliberate shared-SSO design exists. Set
+`CORS_ALLOWED_ORIGINS=https://app.scent.tindalabs.dev`; ingest/resolve stay strictly
+key-gated regardless of origin.
+
+- [ ] **Enable Hetzner automated VM Backups on `scent-prod`** (console → Server → Backups, ~+€2/mo) — off-box DR for whole-box loss, no API tokens required; complements the on-box `pg_dump` + restore-drill cron already running. Declined at create time; switch on once real traffic/data lands.
+- [ ] Attach the `tindalabs.dev` custom domain to the landing site (`CNAME` + DNS; drop the Next.js `/tindalabs.dev` `basePath`)
+- [ ] Defensively register `tindalabs.com` and 301 → `.dev` (invoice/email reputation, squatter defense)
+- [ ] DNS for the hosted box: `api.scent` (and `app.scent` once the Observatory is in the deploy compose) A/AAAA → Hetzner IP; Caddy issues TLS on first boot
+- [ ] Add the Observatory to `deploy/docker-compose.yml` (the production stack currently ships server + worker + Postgres + Redis + Caddy only — no UI) before `app.scent` can serve
