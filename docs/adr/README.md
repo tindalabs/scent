@@ -7,3 +7,4 @@ Each ADR documents a significant architectural choice: the context, the decision
 | [0001](0001-probabilistic-matching.md) | Probabilistic matching via SimHash + Jaccard | Accepted |
 | [0002](0002-persistence-policies.md) | Persistence Policies as first-class config | Accepted |
 | [0003](0003-otel-bridge.md) | OTel traceparent bridge for blindspot-ux composability | Accepted |
+| [0004](0004-consent-and-data-lifecycle.md) | Consent is the controller's responsibility; the SDK enforces, never triggers | Accepted |
