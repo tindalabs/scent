@@ -8,6 +8,12 @@ const SnapshotSchema = z.object({
   persistencePolicy: z.enum(['conservative', 'balanced', 'aggressive', 'forensic']),
   timestamp: z.string().datetime(),
   traceparent: z.string().optional(),
+  // Consent provenance (ADR-0004), forwarded by the SDK. Optional: a snapshot may
+  // arrive without it (e.g. strictly-necessary collection), in which case the server
+  // falls back to the project's lawful_basis_default.
+  lawfulBasis: z.enum(['consent', 'legitimate_interest', 'strictly_necessary']).optional(),
+  consentVersion: z.string().max(128).optional(),
+  consentedAt: z.string().datetime().optional(),
 });
 
 // The SDK's flush() wraps snapshots in a { snapshots: [...] } envelope.
