@@ -4,6 +4,7 @@ export type ScentEventMap = {
   identity_resolved: ScentObservation;
   drift: ScentObservation['drift'] & { observation: ScentObservation };
   risk_elevated: ScentObservation['risk'] & { observation: ScentObservation };
+  consent_changed: { granted: boolean; basis: string };
 };
 
 type Handler<T> = (payload: T) => void;

@@ -73,27 +73,34 @@ describe('SessionStorageAdapter', () => {
 
 describe('PersistenceManager', () => {
   it("balanced policy uses localStorage + cookie (indexedDB unavailable in jsdom)", () => {
-    const m = new PersistenceManager('balanced');
+    const m = new PersistenceManager('balanced', () => true);
     const health = m.healthCheck();
     expect(health['localStorage']).toBe(true);
     expect(health['cookie']).toBe(true);
     expect('indexedDB' in health).toBe(false); // filtered out — not available in jsdom
   });
 
+  it('without a consent check, persist/resurrect are no-ops (fail-closed default)', async () => {
+    const m = new PersistenceManager('balanced'); // no isAllowed → denied
+    await m.persist(ID);
+    expect(localStorage.getItem('__scent_id')).toBeNull();
+    expect(await m.resurrect()).toBeNull();
+  });
+
   it('conservative policy persists only to the cookie layer', async () => {
-    const m = new PersistenceManager('conservative');
+    const m = new PersistenceManager('conservative', () => true);
     await m.persist(ID);
     expect(localStorage.getItem('__scent_id')).toBeNull();
     expect(document.cookie).toContain(`__scent_id=${ID}`);
   });
 
   it('resurrect() returns null when nothing has been stored', async () => {
-    const m = new PersistenceManager('balanced');
+    const m = new PersistenceManager('balanced', () => true);
     expect(await m.resurrect()).toBeNull();
   });
 
   it('persist() writes the id to every layer in the policy', async () => {
-    const m = new PersistenceManager('balanced');
+    const m = new PersistenceManager('balanced', () => true);
     await m.persist(ID);
     expect(localStorage.getItem('__scent_id')).toBe(ID);
     expect(document.cookie).toContain(`__scent_id=${ID}`);
@@ -103,7 +110,7 @@ describe('PersistenceManager', () => {
   // The core resilience property: a returning visitor survives one storage layer
   // being wiped, because the manager resurrects from any surviving layer.
   it('resurrects from the cookie after localStorage is cleared (storage amnesia)', async () => {
-    const m = new PersistenceManager('balanced');
+    const m = new PersistenceManager('balanced', () => true);
     await m.persist(ID);
 
     localStorage.clear(); // simulate a partial wipe / cleared site data for one layer

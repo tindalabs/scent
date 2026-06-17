@@ -95,6 +95,7 @@ async function waitForCommit(signals: Record<string, unknown>): Promise<void> {
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const btnObserve = document.getElementById('btn-observe') as HTMLButtonElement;
 const btnClear   = document.getElementById('btn-clear') as HTMLButtonElement;
+const consentToggle = document.getElementById('consent-toggle') as HTMLInputElement;
 const statusEl   = document.getElementById('status') as HTMLElement;
 const resultCard = document.getElementById('result-card') as HTMLElement;
 const signalsCard= document.getElementById('signals-card') as HTMLElement;
@@ -247,15 +248,35 @@ btnObserve.addEventListener('click', () => {
   });
 });
 
-// ── Clear storage ─────────────────────────────────────────────────────────────
-btnClear.addEventListener('click', () => {
+// ── Consent gate ──────────────────────────────────────────────────────────────
+// Privacy-by-default (ADR-0004): observe() is a no-op until consent is granted. This
+// checkbox stands in for the host application's CMP — in production you wire
+// init({ consent: { mode: 'tcf' | 'gcm' | 'callback' } }) instead of calling setConsent().
+function applyConsent() {
+  sdk.setConsent(consentToggle.checked);
+  btnObserve.disabled = !consentToggle.checked;
+  setStatus(
+    consentToggle.checked
+      ? 'Consent granted — click Observe to start.'
+      : 'Consent required — collection is off until you opt in.',
+    consentToggle.checked ? 'success' : 'idle',
+  );
+}
+consentToggle.addEventListener('change', applyConsent);
+applyConsent(); // start closed (checkbox defaults unchecked → Observe disabled)
+
+// ── Forget me ─────────────────────────────────────────────────────────────────
+// Right to be forgotten: forget() purges every local storage layer and returns the
+// cleared identity id so a host could also call DELETE /v1/identity/:id server-side.
+btnClear.addEventListener('click', async () => {
   try {
-    localStorage.clear();
-    sessionStorage.clear();
-    document.cookie.split(';').forEach((c) => {
-      document.cookie = c.replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
-    });
-    setStatus('Storage cleared — next observe will create a new identity.', 'success');
+    const cleared = await sdk.forget();
+    setStatus(
+      cleared
+        ? `Forgotten (${cleared.slice(0, 8)}…) — next observe creates a new identity.`
+        : 'Nothing to forget — no local identity was stored.',
+      'success',
+    );
     resultCard.style.display = 'none';
     signalsCard.style.display = 'none';
   } catch {
