@@ -169,6 +169,72 @@ describe.skipIf(!hasDb)('identity resolution pipeline (integration)', () => {
   });
 });
 
+describe.skipIf(!hasDb)('consent provenance + IP minimization (integration)', () => {
+  // A distinct device so it gets its own identity/snapshot row.
+  const SIGNALS_C = {
+    ...SIGNALS,
+    'canvas.2d': 'canvashash-integration-CCC',
+    'webgl.renderer': 'Gamma RX 500',
+    'audio.fp': 'audiofp-555',
+    'fonts.list': 'Georgia,Garamond,Consolas',
+  } as const;
+
+  function resolveCtx(
+    timestamp: string,
+    clientIp: string | null,
+    extra: Partial<{ lawfulBasis: 'consent' | 'legitimate_interest' | 'strictly_necessary'; consentVersion: string; consentedAt: string }> = {},
+  ) {
+    return resolveSnapshot(db, {
+      projectId,
+      snap: {
+        identityId: crypto.randomUUID(),
+        signals: SIGNALS_C as Record<string, string | number | boolean | null>,
+        persistencePolicy: 'balanced',
+        timestamp,
+        ...extra,
+      },
+      clientIp,
+    });
+  }
+
+  it('stores a /24-truncated IPv4 by default and the consent provenance', async () => {
+    const r = await resolveCtx(ts(30_000), '203.0.113.45', {
+      lawfulBasis: 'consent',
+      consentVersion: 'policy-v2',
+      consentedAt: ts(29_000),
+    });
+    const [row] = await db<{ ip: string | null; lawful_basis: string; consent_version: string; consented_at: Date | null }[]>`
+      SELECT host(client_ip) AS ip, lawful_basis, consent_version, consented_at
+      FROM snapshots WHERE identity_id = ${r.identityId} ORDER BY timestamp DESC LIMIT 1
+    `;
+    expect(row!.ip).toBe('203.0.113.0'); // host bits dropped
+    expect(row!.lawful_basis).toBe('consent');
+    expect(row!.consent_version).toBe('policy-v2');
+    expect(row!.consented_at).not.toBeNull();
+  });
+
+  it('stores the full IP when the project opts in via store_full_ip', async () => {
+    await db`UPDATE projects SET store_full_ip = true WHERE id = ${projectId}`;
+    try {
+      const r = await resolveCtx(ts(31_000), '203.0.113.45');
+      const [row] = await db<{ ip: string | null }[]>`
+        SELECT host(client_ip) AS ip FROM snapshots WHERE identity_id = ${r.identityId} ORDER BY timestamp DESC LIMIT 1
+      `;
+      expect(row!.ip).toBe('203.0.113.45'); // full address retained
+    } finally {
+      await db`UPDATE projects SET store_full_ip = false WHERE id = ${projectId}`;
+    }
+  });
+
+  it("defaults lawful_basis to the project default when the snapshot omits it", async () => {
+    const r = await resolveCtx(ts(32_000), '198.51.100.7'); // no lawfulBasis passed
+    const [row] = await db<{ lawful_basis: string }[]>`
+      SELECT lawful_basis FROM snapshots WHERE identity_id = ${r.identityId} ORDER BY timestamp DESC LIMIT 1
+    `;
+    expect(row!.lawful_basis).toBe('consent'); // migration default
+  });
+});
+
 describe.skipIf(!hasDb)('end-to-end: POST /v1/events → worker → DB', () => {
   it('a snapshot enqueued via the route is resolved by the worker and persisted', async () => {
     const id = crypto.randomUUID();

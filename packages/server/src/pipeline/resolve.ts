@@ -15,6 +15,7 @@ import {
 import type { SignalMap, PersistencePolicy, IdentityContinuity } from '@tindalabs/scent-engine';
 import { absenceWeightOverrides, updateSignalProfile } from '../engine/signal-profile.js';
 import type { SignalProfile } from '../engine/signal-profile.js';
+import { minimizeIp } from '../lib/minimize-ip.js';
 import { assessRisk } from '../risk/assess.js';
 import { deliverWebhooks } from '../risk/webhook.js';
 
@@ -79,6 +80,16 @@ export async function resolveSnapshot(
       const simHash = computeSimHash(signals);
       const signalHash = simHashToHex(simHash);
       const simHashInt = simHashToInt64(simHash);
+
+      // Project data-lifecycle settings (ADR-0004): whether to store the full IP, and
+      // the lawful basis to record when the snapshot didn't carry one.
+      const [projSettings] = await db<{ store_full_ip: boolean; lawful_basis_default: string }[]>`
+        SELECT store_full_ip, lawful_basis_default FROM projects WHERE id = ${projectId} LIMIT 1
+      `;
+      const storedIp = minimizeIp(clientIp, projSettings?.store_full_ip ?? false);
+      const lawfulBasis = snap.lawfulBasis ?? projSettings?.lawful_basis_default ?? 'consent';
+      const consentVersion = snap.consentVersion ?? null;
+      const consentedAt = snap.consentedAt ?? null;
 
       // Decision + write happen inside one transaction guarded by a per-fingerprint
       // advisory lock. Without it, concurrent ingest jobs for an identical brand-new
@@ -191,13 +202,15 @@ export async function resolveSnapshot(
         const [newSnap] = await tx<{ id: string }[]>`
           INSERT INTO snapshots
             (identity_id, project_id, event_id, timestamp, signals, signal_hash,
-             persistence_policy, traceparent, client_ip)
+             persistence_policy, traceparent, client_ip,
+             lawful_basis, consent_version, consented_at)
           VALUES
             (${resolvedId}, ${projectId}, ${eventId}, ${snap.timestamp},
              ${tx.json(signals)}, ${signalHash},
              ${snap.persistencePolicy as PersistencePolicy},
              ${snap.traceparent ?? null},
-             ${clientIp}::inet)
+             ${storedIp}::inet,
+             ${lawfulBasis}, ${consentVersion}, ${consentedAt})
           RETURNING id
         `;
         if (newSnap) newSnapId = newSnap.id;
