@@ -12,6 +12,8 @@ export type {
   DriftClassification,
   IdentityContinuity,
   PersistencePolicy,
+  LawfulBasis,
+  ConsentConfig,
 } from './types.js';
 
 export { weightOf, buildWeightMap, decayMultiplier } from './signals/weights.js';
