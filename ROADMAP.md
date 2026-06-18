@@ -645,22 +645,22 @@ controller; the SDK *enforces* consent (privacy-by-default, fail-closed) but nev
 records and forwards it.** See ADR-0004 for the legal reasoning (ePrivacy 5(3) device
 access vs GDPR lawful basis; the "strictly necessary" security carve-out).
 
-**Committed v1 scope** (decided with user — TCF certification niceties + the playground UI deferred):
+**Committed v1 scope — SHIPPED 2026-06-18** (across PRs #62–#66; TCF certification niceties + the playground UI deferred):
 
-SDK (client):
-- [ ] Privacy-by-default gate: collection + persistence + transmission OFF until consent; `observe()` and all storage layers no-op when closed (fail-closed). Default-on.
-- [ ] Lawful-basis declaration `basis: 'consent' | 'legitimate_interest' | 'strictly_necessary'` (default `consent`); recorded + forwarded, not adjudicated by the SDK.
-- [ ] CMP adapters: IAB TCF v2 (`__tcfapi`), Google Consent Mode (`gtag('consent')`), generic resolver callback `consent: () => boolean | Promise<boolean>`.
-- [ ] Gate the persistence/resurrection layers (localStorage/sessionStorage/IndexedDB/cookie/ETag), not just the network — composes with the ADR-0002 PersistencePolicy.
-- [ ] `scent.forget()` (purge all local layers + surface identity id) and `scent.setConsent(false)` (revoke forward collection); `consent_changed` event.
+SDK (client) — PR #62:
+- [x] Privacy-by-default gate: collection + persistence + transmission OFF until consent; `observe()`/`snapshot()` return empty and persistence layers no-op when closed (fail-closed). Default-on.
+- [x] Lawful-basis declaration `basis: 'consent' | 'legitimate_interest' | 'strictly_necessary'` (default `consent`); recorded + forwarded, not adjudicated by the SDK.
+- [x] CMP adapters: IAB TCF v2 (`__tcfapi`), Google Consent Mode (`dataLayer`), generic resolver callback (`consent: { mode: 'callback', resolve }`).
+- [x] Gate the persistence/resurrection layers (localStorage/sessionStorage/IndexedDB/cookie), not just the network — composes with the ADR-0002 PersistencePolicy; construction defers probes so nothing touches the device pre-consent.
+- [x] `scent.forget()` (purge all local layers + surface identity id) and `scent.setConsent(false)` (revoke); `consent_changed` event.
 
-Server (lifecycle + accountability):
-- [ ] Consent provenance per snapshot: `lawful_basis`, `consent_version`, `consented_at` (SDK forwards; stored immutably alongside the snapshot — GDPR Art. 7(1)).
-- [ ] Client-IP minimization by default (truncate/hash; full IP only behind an explicit, documented project setting) — replaces today's plaintext `::inet` in `pipeline/resolve.ts`.
-- [ ] Per-project retention TTL + sweeper job deleting expired snapshots/identities.
-- [ ] Data-subject endpoints: `DELETE /v1/identity/:id` (Art. 17, cascading) + `GET /v1/identity/:id/export` (Art. 20).
+Server (lifecycle + accountability) — PRs #63 (migration 012), #64, #65:
+- [x] Consent provenance per snapshot: `lawful_basis`, `consent_version`, `consented_at` (SDK forwards; stored immutably — GDPR Art. 7(1)).
+- [x] Client-IP minimization by default (`/24` v4, `/48` v6 truncation — preserves city-level geo for the detectors; full IP only behind the project's `store_full_ip`). NB: truncation, **not** hashing — hashing would break impossible-travel + anonymizer.
+- [x] Per-project `retention_days` + daily BullMQ sweeper deleting expired identities (cascade).
+- [x] Data-subject endpoints: `DELETE /v1/identity/:id` (Art. 17, cascading, key-gated) + `GET /v1/identity/:id/export` (Art. 20).
 
-Docs:
-- [ ] "GDPR & consent integration guide" — CMP wiring per basis, controller/processor split, DPA template (turns the buying objection into a differentiator).
+Docs — PR #66:
+- [x] "GDPR & consent integration guide" (`docs/integrations/gdpr-consent.md`) + OpenAPI updated (consent fields, `LawfulBasis`, delete/export paths).
 
 **Deferred** (follow-up workstream): IAB TCF vendor registration/certification, the separate consented "identity playground" UI (public LiveStack stays client-only regardless).
