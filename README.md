@@ -231,6 +231,7 @@ The repo-root `docker-compose.yml` is the **local dev** stack instead — it bui
 - [Concepts](docs/concepts.md) — probabilistic identity, drift, confidence, risk
 - [Signal Reference](docs/signals.md) — every collected signal, stability class, GDPR notes
 - [Persistence Policies](docs/persistence-policies.md) — storage scopes, compliance guide
+- [GDPR & Consent](docs/integrations/gdpr-consent.md) — privacy-by-default consent gate, CMP wiring, lawful basis, data-subject rights
 - [REST API](docs/openapi.yaml) — OpenAPI 3 spec (the authoritative contract; lint with `pnpm openapi:lint`)
 - [OTel Bridge](docs/integrations/otel-bridge.md) — tracing integration guide
 - [Migrating from FingerprintJS](docs/migrating-from-fingerprintjs.md)
