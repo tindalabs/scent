@@ -633,6 +633,7 @@ key-gated regardless of origin.
 - [ ] Defensively register `tindalabs.com` and 301 → `.dev` (invoice/email reputation, squatter defense)
 - [ ] DNS for the hosted box: `api.scent` (and `app.scent` once the Observatory is in the deploy compose) A/AAAA → Hetzner IP; Caddy issues TLS on first boot
 - [ ] Add the Observatory to `deploy/docker-compose.yml` (the production stack currently ships server + worker + Postgres + Redis + Caddy only — no UI) before `app.scent` can serve
+- [ ] **Soften fail2ban on `scent-prod` + add an `ignoreip` allowlist** — the launch-day jail (`maxretry=5`, `bantime=1h`) locked the admin's own IP out after a mistyped key passphrase. Add the admin's IP to `ignoreip` in `jail.local` and relax to ~`maxretry=8`, `bantime=15m`. Needs Hetzner-console access (SSH was self-banned). Operational, low priority.
 
 ---
 
@@ -664,3 +665,32 @@ Docs — PR #66:
 - [x] "GDPR & consent integration guide" (`docs/integrations/gdpr-consent.md`) + OpenAPI updated (consent fields, `LawfulBasis`, delete/export paths).
 
 **Deferred** (follow-up workstream): IAB TCF vendor registration/certification, the separate consented "identity playground" UI (public LiveStack stays client-only regardless).
+
+---
+
+## Multi-tenancy: organizations layer — planned (prerequisite for hosted Phase 7)
+
+**Problem.** The data model today is **single-organization, multi-project**: there is no
+company/tenant entity above `projects`, and the admin `owner` role is a **global
+superuser** — `canViewProject`/`canManageProject` return true for *any* owner on *any*
+project (`admin/authz.ts`). That's exactly right for **self-hosting** (one deployment =
+one operator; projects = that operator's apps/environments). It is **unsafe for a hosted
+SaaS** with multiple paying customers on one deployment: Company A's owner could read
+Company B's identities, there's no tenant root to meter/bill per customer, and there's no
+"sign up → get a workspace" onboarding. So the hosted box is effectively single-tenant
+until this lands — fine for the first design partner, blocking before the second.
+
+**Decision (to validate).** Add an `organizations` (tenant) layer and make it the unit
+of isolation, scoping, and billing:
+- [ ] `organizations` table (id, name, plan, created_at; billing fields later). Migration backfills a single default org and assigns all existing admins/projects to it — a no-op for self-host (one org, auto-created).
+- [ ] `projects.organization_id` and `admin_users.organization_id` FKs (every project and admin belongs to exactly one org).
+- [ ] **Re-scope `owner` from global → org-scoped**: `isOwner`/`canViewProject`/`canManageProject` and the project-list/`requireProjectRead` queries gain an org check — an owner sees only their org's projects. (A separate platform/superadmin concept, if ever needed for Tindalabs ops, stays out of the customer RBAC.)
+- [ ] Signup/onboarding: creating an account provisions an org + its first owner; invites are org-scoped (extends the existing invite flow).
+- [ ] Anchor usage metering + Stripe (Phase 7) on `organizations`, not projects.
+
+**Why it composes:** mirrors how migration 009 backfilled `role` for existing admins —
+self-host stays a single auto-created org, so no behaviour change there; the hosted tier
+gains the company boundary it needs. This is the **foundational prerequisite** for the
+hosted free tier + metering/billing already on the backlog, and should land before a
+second customer's data shares the box. Relates to [ADR-0004] data-isolation guarantees
+and the BSL "Tindalabs-hosted only" commercial model.
