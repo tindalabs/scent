@@ -152,6 +152,48 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Identity]
+      summary: Erase an identity (GDPR Art. 17)
+      description: >
+        Deletes the identity and everything held about it — snapshots, drifts, risk
+        assessments, cluster merges, and account links cascade. Strictly key-gated:
+        an admin session can only read, never erase.
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+      responses:
+        "204": { description: Identity erased }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/identity/{id}/export:
+    get:
+      tags: [Identity]
+      summary: Export everything held about an identity (GDPR Art. 20)
+      description: >
+        Returns the identity record plus its snapshots (with consent provenance),
+        drifts, risk assessments, and linked accounts as one JSON bundle.
+      security: [{ ApiKeyAuth: [] }, { AdminSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/IdentityId" }
+        - { $ref: "#/components/parameters/ProjectIdHeader" }
+      responses:
+        "200":
+          description: Full data-subject export bundle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identity: { $ref: "#/components/schemas/Identity" }
+                  snapshots: { type: array, items: { type: object } }
+                  drifts: { type: array, items: { $ref: "#/components/schemas/Drift" } }
+                  riskAssessments: { type: array, items: { type: object } }
+                  accounts: { type: array, items: { type: object } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /v1/identity/{id}/timeline:
     get:
@@ -974,6 +1016,13 @@ components:
       type: string
       enum: [conservative, balanced, aggressive, forensic]
 
+    LawfulBasis:
+      type: string
+      enum: [consent, legitimate_interest, strictly_necessary]
+      description: >
+        The GDPR lawful basis the controller asserts for the snapshot. The server
+        records it; it does not adjudicate legality. See ADR-0004.
+
     ConfidenceBand:
       type: string
       enum: [high, medium, low, unknown]
@@ -998,6 +1047,18 @@ components:
         traceparent:
           type: string
           description: Optional W3C Trace Context header.
+        lawfulBasis:
+          $ref: "#/components/schemas/LawfulBasis"
+        consentVersion:
+          type: string
+          maxLength: 128
+          description: >
+            The controller's consent-policy version, forwarded by the SDK for
+            accountability. Optional.
+        consentedAt:
+          type: string
+          format: date-time
+          description: When the data subject's consent was granted. Optional.
 
     EventsBatch:
       type: object
