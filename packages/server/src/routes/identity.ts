@@ -150,6 +150,67 @@ identityRouter.get('/:id/accounts', async (req: Request, res: Response): Promise
   res.json({ identityId: req.params['id'], accounts: links });
 });
 
+// GDPR Art. 17 (right to erasure): delete the identity and everything held about it.
+// Snapshots, drifts, risk assessments, cluster merges, and account links all cascade
+// (ON DELETE CASCADE on identity_id). Project-scoped. Strictly key-gated: a non-GET
+// never reaches here via an admin session (requireProjectRead returns 401), so an
+// operator must use a project key to erase.
+identityRouter.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  const projectId = req.projectId;
+  const deleted = await db<{ id: string }[]>`
+    DELETE FROM identities
+    WHERE id = ${req.params['id']!} AND project_id = ${projectId}
+    RETURNING id
+  `;
+  if (!deleted[0]) {
+    res.status(404).json({ error: 'Identity not found' });
+    return;
+  }
+  res.status(204).end();
+});
+
+// GDPR Art. 20 (data portability): everything held about an identity, as one JSON
+// bundle — the identity record plus its snapshots (with consent provenance), drifts,
+// risk assessments, and linked accounts.
+identityRouter.get('/:id/export', async (req: Request, res: Response): Promise<void> => {
+  const projectId = req.projectId;
+  const identityId = req.params['id']!;
+
+  const [identity] = await db`
+    SELECT id, first_seen, last_seen, confidence_band, risk_band, snapshot_count, cluster_id
+    FROM identities WHERE id = ${identityId} AND project_id = ${projectId} LIMIT 1
+  `;
+  if (!identity) {
+    res.status(404).json({ error: 'Identity not found' });
+    return;
+  }
+
+  const [snapshots, drifts, riskAssessments, accounts] = await Promise.all([
+    db`
+      SELECT id, timestamp, signals, signal_hash, persistence_policy, traceparent,
+             host(client_ip) AS client_ip, lawful_basis, consent_version, consented_at
+      FROM snapshots WHERE identity_id = ${identityId} ORDER BY timestamp ASC
+    `,
+    db`
+      SELECT id, timestamp, classification, entropy,
+             changed_signals, added_signals, removed_signals
+      FROM drifts WHERE identity_id = ${identityId} ORDER BY timestamp ASC
+    `,
+    db`
+      SELECT id, timestamp, score, band, flags
+      FROM risk_assessments WHERE identity_id = ${identityId} ORDER BY timestamp ASC
+    `,
+    db`
+      SELECT account_id, first_linked_at, last_linked_at, link_count
+      FROM identity_account_links
+      WHERE project_id = ${projectId} AND identity_id = ${identityId}
+      ORDER BY first_linked_at ASC
+    `,
+  ]);
+
+  res.json({ identity, snapshots, drifts, riskAssessments, accounts });
+});
+
 // Current signal profile with per-signal explainability metadata.
 identityRouter.get('/:id/signals', async (req: Request, res: Response): Promise<void> => {
   const projectId = req.projectId;

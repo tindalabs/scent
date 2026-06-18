@@ -328,3 +328,48 @@ describe.skipIf(!hasDb)('account linking + coordinated_accounts (integration)', 
     expect(r.risk.flags).toContain('coordinated_accounts');
   });
 });
+
+describe.skipIf(!hasDb)('data-subject endpoints — export + erasure (integration)', () => {
+  // A distinct device so erasing it can't disturb the other groups' identities.
+  const SIGNALS_D = {
+    ...SIGNALS,
+    'canvas.2d': 'canvashash-integration-DDD',
+    'webgl.renderer': 'Delta Arc 770',
+    'audio.fp': 'audiofp-404',
+    'fonts.list': 'Menlo,Monaco,Inconsolata',
+  } as const;
+
+  it('GET /export returns the full bundle, then DELETE erases it (cascade)', async () => {
+    const r = await resolve(crypto.randomUUID(), ts(40_000), SIGNALS_D);
+    const id = r.identityId;
+
+    const exp = await request(app).get(`/v1/identity/${id}/export`).set('X-Api-Key', API_KEY);
+    expect(exp.status).toBe(200);
+    expect(exp.body.identity.id).toBe(id);
+    expect(exp.body.snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(exp.body.accounts)).toBe(true);
+
+    const del = await request(app).delete(`/v1/identity/${id}`).set('X-Api-Key', API_KEY);
+    expect(del.status).toBe(204);
+
+    const after = await request(app).get(`/v1/identity/${id}`).set('X-Api-Key', API_KEY);
+    expect(after.status).toBe(404);
+
+    const snaps = await db<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count FROM snapshots WHERE identity_id = ${id}
+    `;
+    expect(snaps[0]!.count).toBe('0'); // snapshots cascaded
+  });
+
+  it('DELETE without an API key is rejected (401 — erasure is key-gated)', async () => {
+    const res = await request(app).delete(`/v1/identity/${crypto.randomUUID()}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE of an unknown identity returns 404', async () => {
+    const res = await request(app)
+      .delete(`/v1/identity/${crypto.randomUUID()}`)
+      .set('X-Api-Key', API_KEY);
+    expect(res.status).toBe(404);
+  });
+});
