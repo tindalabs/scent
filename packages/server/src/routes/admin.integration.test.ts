@@ -6,6 +6,7 @@ import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { hashPassword } from '../admin/password.js';
 import { hashApiKey } from '../middleware/api-key.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for the admin management API: login/session, and project key
 // create/rotate/revoke including the data-API (/v1) authorization side effects and
@@ -13,6 +14,7 @@ import { hashApiKey } from '../middleware/api-key.js';
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const EMAIL = 'admin-int@example.com';
 const PASSWORD = 'test-password-123';
+const ORG = 'AdminIT Org';
 
 const app = createApp();
 
@@ -37,14 +39,17 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
-  await db`INSERT INTO admin_users (email, password_hash, role) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner')`;
   await db`DELETE FROM projects WHERE name LIKE 'AdminIT %'`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
+  await db`INSERT INTO admin_users (email, password_hash, role, organization_id) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', ${org})`;
 });
 
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
   await db`DELETE FROM projects WHERE name LIKE 'AdminIT %'`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

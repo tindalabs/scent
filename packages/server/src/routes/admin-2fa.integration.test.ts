@@ -11,7 +11,7 @@ const { migrate } = await import('../db/migrate.js');
 const { db } = await import('../db/client.js');
 const { redis } = await import('../db/redis.js');
 const { hashPassword } = await import('../admin/password.js');
-const { setTwoFactorRequired } = await import('../admin/settings.js');
+const { createTestOrg, deleteTestOrg } = await import('../test-support/org.js');
 
 // Integration coverage for TOTP 2FA (migration 011): enrollment, login challenge,
 // recovery codes, disable, and the org-wide require-2FA enrollment funnel. Gated on
@@ -22,6 +22,7 @@ const OWNER_EMAIL = 'twofa-owner-it@example.com';
 const MEMBER_EMAIL = 'twofa-member-it@example.com';
 const PASSWORD = 'test-password-123';
 const EMAILS = [OWNER_EMAIL, MEMBER_EMAIL];
+const ORG = 'TwoFaIT Org';
 
 const app = createApp();
 
@@ -36,15 +37,18 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM admin_users WHERE email = ANY(${EMAILS})`;
-  await db`INSERT INTO admin_users (email, password_hash, role, is_active) VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', true)`;
-  await db`INSERT INTO admin_users (email, password_hash, role, is_active) VALUES (${MEMBER_EMAIL}, ${await hashPassword(PASSWORD)}, 'member', true)`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
+  await db`INSERT INTO admin_users (email, password_hash, role, is_active, organization_id) VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', true, ${org})`;
+  await db`INSERT INTO admin_users (email, password_hash, role, is_active, organization_id) VALUES (${MEMBER_EMAIL}, ${await hashPassword(PASSWORD)}, 'member', true, ${org})`;
 });
 
 afterAll(async () => {
   if (!hasDb) return;
-  // Reset the global toggle so other suites' (un-enrolled) admins aren't funneled.
-  await setTwoFactorRequired(false);
+  // require_2fa is per-org now, so deleting this suite's org (after its admins) is enough
+  // — no other suite's admins can be funneled by it.
   await db`DELETE FROM admin_users WHERE email = ANY(${EMAILS})`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

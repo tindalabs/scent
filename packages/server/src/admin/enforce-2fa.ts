@@ -18,7 +18,7 @@ export async function enforce2faEnrollment(req: Request, res: Response, next: Ne
     next();
     return;
   }
-  if (await isTwoFactorRequired()) {
+  if (await isTwoFactorRequired(user.organizationId)) {
     res.status(403).json({ error: 'two_factor_enrollment_required' });
     return;
   }

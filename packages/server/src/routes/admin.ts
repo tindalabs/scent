@@ -97,9 +97,9 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
 
   const email = parsed.data.email.trim().toLowerCase();
   const rows = await db<
-    { id: string; password_hash: string; role: string; is_active: boolean; totp_enabled: boolean; totp_secret_enc: string | null }[]
+    { id: string; password_hash: string; role: string; is_active: boolean; totp_enabled: boolean; totp_secret_enc: string | null; organization_id: string }[]
   >`
-    SELECT id, password_hash, role, is_active, totp_enabled, totp_secret_enc
+    SELECT id, password_hash, role, is_active, totp_enabled, totp_secret_enc, organization_id
     FROM admin_users WHERE email = ${email} LIMIT 1
   `;
 
@@ -131,7 +131,7 @@ adminRouter.post('/login', async (req: Request, res: Response): Promise<void> =>
   await db`UPDATE admin_users SET last_login_at = now() WHERE id = ${user.id}`;
   res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req));
   issueCsrfToken(req, res); // double-submit token for subsequent mutations
-  const mustEnroll = !user.totp_enabled && (await isTwoFactorRequired());
+  const mustEnroll = !user.totp_enabled && (await isTwoFactorRequired(user.organization_id));
   res.json({ id: user.id, email, role: user.role, totpEnabled: user.totp_enabled, mustEnroll });
 });
 
@@ -178,8 +178,8 @@ adminRouter.post('/invites/accept', async (req: Request, res: Response): Promise
 
   const passwordHash = await hashPassword(parsed.data.password);
   const [user] = await db<{ id: string }[]>`
-    INSERT INTO admin_users (email, password_hash, role, is_active)
-    VALUES (${invite.email}, ${passwordHash}, ${invite.role}, true)
+    INSERT INTO admin_users (email, password_hash, role, is_active, organization_id)
+    VALUES (${invite.email}, ${passwordHash}, ${invite.role}, true, ${invite.organization_id})
     ON CONFLICT (email) DO NOTHING
     RETURNING id
   `;
@@ -193,7 +193,7 @@ adminRouter.post('/invites/accept', async (req: Request, res: Response): Promise
   const token = await createSession(user.id);
   res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req));
   issueCsrfToken(req, res);
-  const mustEnroll = await isTwoFactorRequired();
+  const mustEnroll = await isTwoFactorRequired(invite.organization_id);
   res.status(201).json({ id: user.id, email: invite.email, role: invite.role, totpEnabled: false, mustEnroll });
 });
 
@@ -206,7 +206,7 @@ adminRouter.use(enforce2faEnrollment);
 
 adminRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
   const user = req.adminUser!;
-  const mustEnroll = !user.totpEnabled && (await isTwoFactorRequired());
+  const mustEnroll = !user.totpEnabled && (await isTwoFactorRequired(user.organizationId));
   res.json({ id: user.id, email: user.email, role: user.role, totpEnabled: user.totpEnabled, mustEnroll });
 });
 
@@ -218,6 +218,7 @@ adminRouter.get('/projects', async (req: Request, res: Response): Promise<void> 
     ? await db`
         SELECT id, name, key_prefix, created_at, 'owner' AS role
         FROM projects
+        WHERE organization_id = ${user.organizationId}
         ORDER BY created_at DESC
       `
     : await db`
@@ -240,8 +241,8 @@ adminRouter.post('/projects', requireCsrf, requireOwner, async (req: Request, re
 
   const { apiKey, keyHash, keyPrefix } = mintApiKey();
   const [project] = await db<{ id: string; name: string; key_prefix: string; created_at: Date }[]>`
-    INSERT INTO projects (api_key_hash, name, key_prefix)
-    VALUES (${keyHash}, ${parsed.data.name}, ${keyPrefix})
+    INSERT INTO projects (api_key_hash, name, key_prefix, organization_id)
+    VALUES (${keyHash}, ${parsed.data.name}, ${keyPrefix}, ${req.adminUser!.organizationId})
     RETURNING id, name, key_prefix, created_at
   `;
 
@@ -255,8 +256,11 @@ adminRouter.post('/projects/:id/rotate', requireCsrf, async (req: Request, res: 
     res.status(400).json({ error: 'Missing project id' });
     return;
   }
+  // Org-scoped existence check: a project in another tenant is indistinguishable from a
+  // missing one (404, never 403 — no cross-tenant existence leak).
   const existing = await db<{ api_key_hash: string }[]>`
-    SELECT api_key_hash FROM projects WHERE id = ${id} LIMIT 1
+    SELECT api_key_hash FROM projects
+    WHERE id = ${id} AND organization_id = ${req.adminUser!.organizationId} LIMIT 1
   `;
   if (!existing[0]) {
     res.status(404).json({ error: 'Project not found' });
@@ -287,7 +291,8 @@ adminRouter.delete('/projects/:id', requireCsrf, requireOwner, async (req: Reque
     return;
   }
   const existing = await db<{ api_key_hash: string }[]>`
-    SELECT api_key_hash FROM projects WHERE id = ${id} LIMIT 1
+    SELECT api_key_hash FROM projects
+    WHERE id = ${id} AND organization_id = ${req.adminUser!.organizationId} LIMIT 1
   `;
   if (!existing[0]) {
     res.status(404).json({ error: 'Project not found' });
@@ -335,14 +340,16 @@ adminRouter.post('/me/password', requireCsrf, async (req: Request, res: Response
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // List admins and pending invites.
-adminRouter.get('/users', requireOwner, async (_req: Request, res: Response): Promise<void> => {
+adminRouter.get('/users', requireOwner, async (req: Request, res: Response): Promise<void> => {
+  const org = req.adminUser!.organizationId;
   const users = await db`
     SELECT id, email, role, is_active, totp_enabled, last_login_at, created_at
-    FROM admin_users ORDER BY created_at ASC
+    FROM admin_users WHERE organization_id = ${org} ORDER BY created_at ASC
   `;
   const invites = await db`
     SELECT id, email, role, expires_at, created_at
-    FROM admin_invites WHERE accepted_at IS NULL AND expires_at > now()
+    FROM admin_invites
+    WHERE organization_id = ${org} AND accepted_at IS NULL AND expires_at > now()
     ORDER BY created_at DESC
   `;
   res.json({ users, invites });
@@ -367,7 +374,7 @@ adminRouter.post('/users/invite', requireCsrf, requireOwner, async (req: Request
     res.status(409).json({ error: 'An account with this email already exists' });
     return;
   }
-  const { token, invite } = await createInvite(email, parsed.data.role, req.adminUser!.id);
+  const { token, invite } = await createInvite(email, parsed.data.role, req.adminUser!.id, req.adminUser!.organizationId);
   res.status(201).json({ invite, token });
 });
 
@@ -392,21 +399,24 @@ adminRouter.patch('/users/:id', requireCsrf, requireOwner, async (req: Request, 
     res.status(400).json({ error: 'You cannot change your own role or status' });
     return;
   }
+  const org = req.adminUser!.organizationId;
+  // Org-scoped lookup: a user in another tenant reads as not-found (no cross-org edits).
   const target = await db<{ id: string; role: string; is_active: boolean }[]>`
-    SELECT id, role, is_active FROM admin_users WHERE id = ${id} LIMIT 1
+    SELECT id, role, is_active FROM admin_users WHERE id = ${id} AND organization_id = ${org} LIMIT 1
   `;
   if (!target[0]) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
 
-  // Don't strip the install of its last active owner (demote or deactivate).
+  // Don't strip the ORG of its last active owner (demote or deactivate).
   const losingOwner =
     target[0].role === 'owner' &&
     ((parsed.data.role !== undefined && parsed.data.role !== 'owner') || parsed.data.is_active === false);
   if (losingOwner) {
     const ownerCount = await db<{ count: string }[]>`
-      SELECT COUNT(*) AS count FROM admin_users WHERE role = 'owner' AND is_active = true
+      SELECT COUNT(*) AS count FROM admin_users
+      WHERE role = 'owner' AND is_active = true AND organization_id = ${org}
     `;
     if (parseInt(ownerCount[0]?.count ?? '0', 10) <= 1) {
       res.status(400).json({ error: 'Cannot remove the last active owner' });
@@ -428,7 +438,7 @@ adminRouter.delete('/invites/:id', requireCsrf, requireOwner, async (req: Reques
     res.status(400).json({ error: 'Invalid invite id' });
     return;
   }
-  await db`DELETE FROM admin_invites WHERE id = ${id}`;
+  await db`DELETE FROM admin_invites WHERE id = ${id} AND organization_id = ${req.adminUser!.organizationId}`;
   res.json({ deleted: true });
 });
 
@@ -439,10 +449,13 @@ adminRouter.get('/users/:id/projects', requireOwner, async (req: Request, res: R
     res.status(400).json({ error: 'Invalid user id' });
     return;
   }
+  // Constrain to the caller's org on both the user and the joined projects so an owner
+  // can't probe another tenant's grants.
+  const org = req.adminUser!.organizationId;
   const memberships = await db`
     SELECT pm.project_id, p.name, pm.role
     FROM project_members pm JOIN projects p ON p.id = pm.project_id
-    WHERE pm.user_id = ${id}
+    WHERE pm.user_id = ${id} AND p.organization_id = ${org}
     ORDER BY p.created_at DESC
   `;
   res.json({ memberships });
@@ -463,12 +476,15 @@ adminRouter.put('/users/:id/projects/:projectId', requireCsrf, requireOwner, asy
     res.status(400).json({ error: 'Invalid payload' });
     return;
   }
-  const user = await db`SELECT id FROM admin_users WHERE id = ${userId} LIMIT 1`;
+  // Both the user and the project must live in the caller's org — you can only grant a
+  // member of your tenant access to a project of your tenant.
+  const org = req.adminUser!.organizationId;
+  const user = await db`SELECT id FROM admin_users WHERE id = ${userId} AND organization_id = ${org} LIMIT 1`;
   if (!user[0]) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-  const project = await db`SELECT id FROM projects WHERE id = ${projectId} LIMIT 1`;
+  const project = await db`SELECT id FROM projects WHERE id = ${projectId} AND organization_id = ${org} LIMIT 1`;
   if (!project[0]) {
     res.status(404).json({ error: 'Project not found' });
     return;
@@ -489,7 +505,12 @@ adminRouter.delete('/users/:id/projects/:projectId', requireCsrf, requireOwner, 
     res.status(400).json({ error: 'Invalid id' });
     return;
   }
-  await db`DELETE FROM project_members WHERE user_id = ${userId} AND project_id = ${projectId}`;
+  // Only touch grants on projects in the caller's org.
+  await db`
+    DELETE FROM project_members
+    WHERE user_id = ${userId} AND project_id = ${projectId}
+      AND project_id IN (SELECT id FROM projects WHERE organization_id = ${req.adminUser!.organizationId})
+  `;
   res.json({ deleted: true });
 });
 
@@ -582,8 +603,8 @@ adminRouter.post('/me/2fa/disable', requireCsrf, async (req: Request, res: Respo
 
 // --- Install settings (owner-only) -------------------------------------------------
 
-adminRouter.get('/settings', requireOwner, async (_req: Request, res: Response): Promise<void> => {
-  res.json({ require_2fa: await isTwoFactorRequired() });
+adminRouter.get('/settings', requireOwner, async (req: Request, res: Response): Promise<void> => {
+  res.json({ require_2fa: await isTwoFactorRequired(req.adminUser!.organizationId) });
 });
 
 const SettingsSchema = z.object({ require_2fa: z.boolean() });
@@ -600,6 +621,6 @@ adminRouter.put('/settings', requireCsrf, requireOwner, async (req: Request, res
     res.status(400).json({ error: 'Cannot require two-factor: server encryption key (SCENT_SECRET_KEY) is not configured' });
     return;
   }
-  await setTwoFactorRequired(parsed.data.require_2fa);
+  await setTwoFactorRequired(req.adminUser!.organizationId, parsed.data.require_2fa);
   res.json({ require_2fa: parsed.data.require_2fa });
 });
