@@ -13,6 +13,8 @@ export interface AdminUser {
   email: string;
   role: AdminRole;
   totpEnabled: boolean;
+  // The tenant this admin belongs to. Owners are superusers WITHIN this org only.
+  organizationId: string;
 }
 
 function hashToken(token: string): string {
@@ -33,7 +35,8 @@ export async function createSession(userId: string): Promise<string> {
 // Resolve a raw token to its admin user, or null if missing/expired.
 export async function validateSession(token: string): Promise<AdminUser | null> {
   const rows = await db<AdminUser[]>`
-    SELECT u.id, u.email, u.role, u.totp_enabled AS "totpEnabled"
+    SELECT u.id, u.email, u.role, u.totp_enabled AS "totpEnabled",
+           u.organization_id AS "organizationId"
     FROM admin_sessions s
     JOIN admin_users u ON u.id = s.user_id
     WHERE s.token_hash = ${hashToken(token)} AND s.expires_at > now() AND u.is_active
