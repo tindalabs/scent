@@ -17,17 +17,20 @@ export interface Invite {
   expires_at: string;
 }
 
-// Create an invite; returns the raw token (shown once) plus the stored row.
+// Create an invite scoped to the inviter's organization; returns the raw token (shown
+// once) plus the stored row. The org travels with the invite so the accepted account
+// lands in the inviting company.
 export async function createInvite(
   email: string,
   role: AdminRole,
   invitedBy: string,
+  organizationId: string,
 ): Promise<{ token: string; invite: Invite }> {
   const token = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
   const [invite] = await db<Invite[]>`
-    INSERT INTO admin_invites (email, token_hash, role, invited_by, expires_at)
-    VALUES (${email}, ${hashToken(token)}, ${role}, ${invitedBy}, ${expiresAt.toISOString()})
+    INSERT INTO admin_invites (email, token_hash, role, invited_by, organization_id, expires_at)
+    VALUES (${email}, ${hashToken(token)}, ${role}, ${invitedBy}, ${organizationId}, ${expiresAt.toISOString()})
     RETURNING id, email, role, expires_at
   `;
   return { token, invite: invite! };
@@ -36,9 +39,9 @@ export async function createInvite(
 // Resolve a raw token to a pending, unexpired invite, or null.
 export async function findValidInvite(
   token: string,
-): Promise<{ id: string; email: string; role: AdminRole } | null> {
-  const rows = await db<{ id: string; email: string; role: AdminRole }[]>`
-    SELECT id, email, role
+): Promise<{ id: string; email: string; role: AdminRole; organization_id: string } | null> {
+  const rows = await db<{ id: string; email: string; role: AdminRole; organization_id: string }[]>`
+    SELECT id, email, role, organization_id
     FROM admin_invites
     WHERE token_hash = ${hashToken(token)}
       AND accepted_at IS NULL

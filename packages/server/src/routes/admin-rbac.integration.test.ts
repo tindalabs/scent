@@ -6,6 +6,7 @@ import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { hashApiKey } from '../middleware/api-key.js';
 import { hashPassword } from '../admin/password.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for the two-level admin RBAC (migration 009): owners are
 // superusers; members reach only the projects granted in project_members, and their
@@ -18,6 +19,7 @@ const PASSWORD = 'test-password-123';
 const KEY_A = 'rbac-it-key-a';
 const KEY_B = 'rbac-it-key-b';
 const KEY_C = 'rbac-it-key-c';
+const ORG = 'RbacIT Org';
 
 const app = createApp();
 let idA: string; // member: viewer
@@ -37,19 +39,21 @@ beforeAll(async () => {
   await redis.flushdb();
   await db`DELETE FROM admin_users WHERE email IN (${OWNER_EMAIL}, ${MEMBER_EMAIL})`;
   await db`DELETE FROM projects WHERE name LIKE 'RbacIT %'`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
 
   await db`
-    INSERT INTO admin_users (email, password_hash, role)
-    VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner')
+    INSERT INTO admin_users (email, password_hash, role, organization_id)
+    VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', ${org})
   `;
   const [member] = await db<{ id: string }[]>`
-    INSERT INTO admin_users (email, password_hash, role)
-    VALUES (${MEMBER_EMAIL}, ${await hashPassword(PASSWORD)}, 'member') RETURNING id
+    INSERT INTO admin_users (email, password_hash, role, organization_id)
+    VALUES (${MEMBER_EMAIL}, ${await hashPassword(PASSWORD)}, 'member', ${org}) RETURNING id
   `;
 
   const mk = async (key: string, name: string): Promise<string> => {
     const [p] = await db<{ id: string }[]>`
-      INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(key)}, ${name}) RETURNING id
+      INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(key)}, ${name}, ${org}) RETURNING id
     `;
     return p!.id;
   };
@@ -66,6 +70,7 @@ afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM admin_users WHERE email IN (${OWNER_EMAIL}, ${MEMBER_EMAIL})`;
   await db`DELETE FROM projects WHERE name LIKE 'RbacIT %'`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

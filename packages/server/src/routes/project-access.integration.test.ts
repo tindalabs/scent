@@ -6,6 +6,7 @@ import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { hashApiKey } from '../middleware/api-key.js';
 import { hashPassword } from '../admin/password.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for requireProjectRead: the /v1 read routes accept EITHER a
 // project API key OR an admin session + X-Project-Id (GET only). Asserts both auth
@@ -18,6 +19,7 @@ const PASSWORD = 'test-password-123';
 const KEY_A = 'project-access-it-key-a';
 const KEY_B = 'project-access-it-key-b';
 const UNKNOWN_UUID = '00000000-0000-4000-8000-000000000000';
+const ORG = 'ProjAccessIT Org';
 
 const app = createApp();
 let idA: string;
@@ -29,16 +31,18 @@ beforeAll(async () => {
   await redis.flushdb();
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
   await db`DELETE FROM projects WHERE name LIKE 'ProjAccessIT %'`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
 
-  // Owner — exercises the "view any project" path; member-scoping is covered in the
-  // dedicated RBAC suite.
-  await db`INSERT INTO admin_users (email, password_hash, role) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner')`;
+  // Owner — exercises the "view any project in the org" path; member-scoping is covered
+  // in the dedicated RBAC suite.
+  await db`INSERT INTO admin_users (email, password_hash, role, organization_id) VALUES (${EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', ${org})`;
 
   const [projA] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(KEY_A)}, 'ProjAccessIT A') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(KEY_A)}, 'ProjAccessIT A', ${org}) RETURNING id
   `;
   const [projB] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(KEY_B)}, 'ProjAccessIT B') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(KEY_B)}, 'ProjAccessIT B', ${org}) RETURNING id
   `;
   idA = projA!.id;
   idB = projB!.id;
@@ -61,6 +65,7 @@ afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM admin_users WHERE email = ${EMAIL}`;
   await db`DELETE FROM projects WHERE name LIKE 'ProjAccessIT %'`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

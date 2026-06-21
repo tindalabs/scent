@@ -5,6 +5,7 @@ import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { hashPassword } from '../admin/password.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for account management (migration 010): invite + accept,
 // owner-only gating, self-lockout guard, per-project membership grants, self password
@@ -16,6 +17,7 @@ const MEMBER_EMAIL = 'acct-member-it@example.com';
 const SHORTPW_EMAIL = 'acct-shortpw-it@example.com';
 const PASSWORD = 'test-password-123';
 const NEW_PASSWORD = 'new-password-456';
+const ORG = 'AcctIT Org';
 
 const app = createApp();
 let ownerId: string;
@@ -35,9 +37,11 @@ beforeAll(async () => {
   await db`DELETE FROM admin_users WHERE email = ANY(${EMAILS})`;
   await db`DELETE FROM admin_invites WHERE email = ANY(${EMAILS})`;
   await db`DELETE FROM projects WHERE name LIKE 'AcctIT %'`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
   const [owner] = await db<{ id: string }[]>`
-    INSERT INTO admin_users (email, password_hash, role, is_active)
-    VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', true) RETURNING id
+    INSERT INTO admin_users (email, password_hash, role, is_active, organization_id)
+    VALUES (${OWNER_EMAIL}, ${await hashPassword(PASSWORD)}, 'owner', true, ${org}) RETURNING id
   `;
   ownerId = owner!.id;
 });
@@ -47,6 +51,7 @@ afterAll(async () => {
   await db`DELETE FROM admin_users WHERE email = ANY(${EMAILS})`;
   await db`DELETE FROM admin_invites WHERE email = ANY(${EMAILS})`;
   await db`DELETE FROM projects WHERE name LIKE 'AcctIT %'`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

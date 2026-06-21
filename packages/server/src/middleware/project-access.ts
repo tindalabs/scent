@@ -72,7 +72,7 @@ export async function requireProjectRead(
 
   // If the install requires 2FA, a not-yet-enrolled admin can't view data either —
   // they must enroll first (mirrors enforce2faEnrollment on the /admin routes).
-  if (!user.totpEnabled && (await isTwoFactorRequired())) {
+  if (!user.totpEnabled && (await isTwoFactorRequired(user.organizationId))) {
     res.status(403).json({ error: 'two_factor_enrollment_required' });
     return;
   }
@@ -89,15 +89,17 @@ export async function requireProjectRead(
     return;
   }
 
+  // Org-scoped existence check: a project in another tenant reads as not-found (404),
+  // so a session can never even confirm a cross-tenant project exists.
   const project = await db<{ id: string }[]>`
-    SELECT id FROM projects WHERE id = ${projectId} LIMIT 1
+    SELECT id FROM projects WHERE id = ${projectId} AND organization_id = ${user.organizationId} LIMIT 1
   `;
   if (!project[0]) {
     res.status(404).json({ error: 'Project not found' });
     return;
   }
 
-  // RBAC: owners see every project; members only those granted in project_members.
+  // RBAC: owners see every project in their org; members only those granted in project_members.
   if (!(await canViewProject(user, projectId))) {
     res.status(403).json({ error: 'You do not have access to this project' });
     return;
