@@ -9,6 +9,7 @@ import { resolveSnapshot } from '../pipeline/resolve.js';
 import { createQueueConnection, INGEST_QUEUE_NAME } from '../queue/ingest.js';
 import type { IngestJobData } from '../queue/ingest.js';
 import { hashApiKey } from '../middleware/api-key.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration tests hit a real Postgres + Redis. They run in CI (which provides
 // DATABASE_URL/REDIS_URL via service containers) and locally when those env vars
@@ -17,6 +18,7 @@ import { hashApiKey } from '../middleware/api-key.js';
 const hasDb = Boolean(process.env['DATABASE_URL']);
 
 const API_KEY = 'integration-test-key';
+const ORG = 'Events IT Org';
 
 // A rich, stable signal set: identical re-submissions resolve to the same identity
 // with high confidence (canvas/audio/fonts/hardware dominate the weighting).
@@ -80,8 +82,10 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`; // cascades to identities/snapshots/links
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Integration Test') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(API_KEY)}, 'Integration Test', ${org}) RETURNING id
   `;
   projectId = proj!.id;
 });
@@ -89,6 +93,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

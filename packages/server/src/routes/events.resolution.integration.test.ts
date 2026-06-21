@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { resolveSnapshot } from '../pipeline/resolve.js';
 import { hashApiKey } from '../middleware/api-key.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for the *resolution decisions* — new-vs-returning boundary,
 // ambiguous match, and cluster linking — that the happy-path suite doesn't reach.
@@ -14,6 +15,7 @@ import { hashApiKey } from '../middleware/api-key.js';
 // skips locally without a DB).
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const API_KEY = 'integration-resolution-key';
+const ORG = 'Resolution IT Org';
 
 // Base device: 4 stable (weight 0.9) + 5 moderate (0.55) signals.
 const C = {
@@ -89,8 +91,10 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Resolution Integration') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(API_KEY)}, 'Resolution Integration', ${org}) RETURNING id
   `;
   projectId = proj!.id;
 });
@@ -98,6 +102,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });

@@ -3,6 +3,7 @@ import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { hashApiKey } from '../middleware/api-key.js';
 import { assessRisk } from './assess.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Regression coverage for the risk_assessments.flags encoding bug: the insert used
 // `${JSON.stringify(flags)}::jsonb`, which postgres.js double-encodes into a JSON
@@ -11,6 +12,7 @@ import { assessRisk } from './assess.js';
 // ARRAY. Gated on DATABASE_URL.
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const API_KEY = 'assess-integration-key';
+const ORG = 'Assess IT Org';
 const ID = 'assessit-identity-1';
 
 let projectId: string;
@@ -20,8 +22,10 @@ beforeAll(async () => {
   if (!hasDb) return;
   await migrate();
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Assess Integration') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(API_KEY)}, 'Assess Integration', ${org}) RETURNING id
   `;
   projectId = proj!.id;
   await db`
@@ -39,6 +43,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
   await db.end();
 });
 

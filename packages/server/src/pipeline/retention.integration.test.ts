@@ -3,13 +3,16 @@ import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { sweepRetention } from './retention.js';
 import { hashApiKey } from '../middleware/api-key.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Gated on DATABASE_URL like the other integration suites (runs in CI, skips locally
 // without a DB). See events.integration.test.ts for the rationale.
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const API_KEY = 'retention-test-key';
+const ORG = 'Retention IT Org';
 
 let projectId: string; // retention_days = 30
+let orgId: string;
 
 async function seedIdentity(project: string, ageDays: number): Promise<string> {
   const id = `ret-${ageDays}d-${crypto.randomUUID()}`;
@@ -24,9 +27,11 @@ beforeAll(async () => {
   if (!hasDb) return;
   await migrate();
   await db`DELETE FROM projects WHERE api_key_hash IN (${hashApiKey(API_KEY)}, ${hashApiKey(`${API_KEY}-keep`)})`;
+  await deleteTestOrg(ORG);
+  orgId = await createTestOrg(ORG);
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name, retention_days)
-    VALUES (${hashApiKey(API_KEY)}, 'Retention Test', 30) RETURNING id
+    INSERT INTO projects (api_key_hash, name, retention_days, organization_id)
+    VALUES (${hashApiKey(API_KEY)}, 'Retention Test', 30, ${orgId}) RETURNING id
   `;
   projectId = proj!.id;
 });
@@ -34,6 +39,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM projects WHERE api_key_hash IN (${hashApiKey(API_KEY)}, ${hashApiKey(`${API_KEY}-keep`)})`;
+  await deleteTestOrg(ORG);
   await db.end();
 });
 
@@ -55,8 +61,8 @@ describe.skipIf(!hasDb)('sweepRetention', () => {
 
   it('skips projects with null retention_days (keep forever)', async () => {
     const [keepProj] = await db<{ id: string }[]>`
-      INSERT INTO projects (api_key_hash, name)
-      VALUES (${hashApiKey(`${API_KEY}-keep`)}, 'Keep Forever') RETURNING id
+      INSERT INTO projects (api_key_hash, name, organization_id)
+      VALUES (${hashApiKey(`${API_KEY}-keep`)}, 'Keep Forever', ${orgId}) RETURNING id
     `;
     const ancient = await seedIdentity(keepProj!.id, 999);
 
