@@ -5,12 +5,14 @@ import { migrate } from '../db/migrate.js';
 import { db } from '../db/client.js';
 import { redis } from '../db/redis.js';
 import { hashApiKey } from '../middleware/api-key.js';
+import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
 
 // Integration coverage for the read/query API (the GET routes + /v1/resolve), which
 // the OpenAPI spec documents and the SDK/Observatory consume. Seeds a small graph and
 // asserts status + response shape. Gated on DATABASE_URL like the other suites.
 const hasDb = Boolean(process.env['DATABASE_URL']);
 const API_KEY = 'queries-integration-key';
+const ORG = 'Queries IT Org';
 
 const app = createApp();
 let projectId: string;
@@ -28,8 +30,10 @@ beforeAll(async () => {
   await migrate();
   await redis.flushdb();
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
+  const org = await createTestOrg(ORG);
   const [proj] = await db<{ id: string }[]>`
-    INSERT INTO projects (api_key_hash, name) VALUES (${hashApiKey(API_KEY)}, 'Queries Integration') RETURNING id
+    INSERT INTO projects (api_key_hash, name, organization_id) VALUES (${hashApiKey(API_KEY)}, 'Queries Integration', ${org}) RETURNING id
   `;
   projectId = proj!.id;
 
@@ -82,6 +86,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!hasDb) return;
   await db`DELETE FROM projects WHERE api_key_hash = ${hashApiKey(API_KEY)}`;
+  await deleteTestOrg(ORG);
   await redis.quit();
   await db.end();
 });
