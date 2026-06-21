@@ -9,7 +9,10 @@ info:
       - **/v1** — the data API consumed by the SDK and integrators, authenticated by a
         project API key (`X-Api-Key`).
       - **/admin** — the management API behind the Observatory, authenticated by an admin
-        session cookie; mutating routes also require a double-submit CSRF token.
+        session cookie; mutating routes also require a double-submit CSRF token. All
+        `/admin` responses are scoped to the caller's organization (the tenant boundary,
+        see ADR-0005): an owner sees only its own org's projects, users, and invites, and a
+        cross-organization id returns `404`.
 
     This file is the authoritative, machine-readable contract. `docs/api.md` is a prose companion.
   license:

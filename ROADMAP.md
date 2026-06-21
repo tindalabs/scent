@@ -668,29 +668,30 @@ Docs — PR #66:
 
 ---
 
-## Multi-tenancy: organizations layer — planned (prerequisite for hosted Phase 7)
+## Multi-tenancy: organizations layer — SHIPPED ([ADR-0005], migrations 013–014, PRs #69–#72)
 
-**Problem.** The data model today is **single-organization, multi-project**: there is no
-company/tenant entity above `projects`, and the admin `owner` role is a **global
-superuser** — `canViewProject`/`canManageProject` return true for *any* owner on *any*
+**Problem.** The data model was **single-organization, multi-project**: there was no
+company/tenant entity above `projects`, and the admin `owner` role was a **global
+superuser** — `canViewProject`/`canManageProject` returned true for *any* owner on *any*
 project (`admin/authz.ts`). That's exactly right for **self-hosting** (one deployment =
-one operator; projects = that operator's apps/environments). It is **unsafe for a hosted
+one operator; projects = that operator's apps/environments). It was **unsafe for a hosted
 SaaS** with multiple paying customers on one deployment: Company A's owner could read
 Company B's identities, there's no tenant root to meter/bill per customer, and there's no
-"sign up → get a workspace" onboarding. So the hosted box is effectively single-tenant
-until this lands — fine for the first design partner, blocking before the second.
+"sign up → get a workspace" onboarding. So the hosted box was effectively single-tenant.
 
-**Decision (to validate).** Add an `organizations` (tenant) layer and make it the unit
-of isolation, scoping, and billing:
-- [ ] `organizations` table (id, name, plan, created_at; billing fields later). Migration backfills a single default org and assigns all existing admins/projects to it — a no-op for self-host (one org, auto-created).
-- [ ] `projects.organization_id` and `admin_users.organization_id` FKs (every project and admin belongs to exactly one org).
-- [ ] **Re-scope `owner` from global → org-scoped**: `isOwner`/`canViewProject`/`canManageProject` and the project-list/`requireProjectRead` queries gain an org check — an owner sees only their org's projects. (A separate platform/superadmin concept, if ever needed for Tindalabs ops, stays out of the customer RBAC.)
-- [ ] Signup/onboarding: creating an account provisions an org + its first owner; invites are org-scoped (extends the existing invite flow).
-- [ ] Anchor usage metering + Stripe (Phase 7) on `organizations`, not projects.
+**Decision (shipped).** Added an `organizations` (tenant) layer and made it the unit of
+isolation; metering/billing will anchor on it:
+- [x] `organizations` table (id, name, slug, `require_2fa`, created_at; billing fields later). Migration 013 backfills a single `Default` org and assigns all existing admins/projects to it — a no-op for self-host (one org, auto-created).
+- [x] `projects.organization_id`, `admin_users.organization_id`, `admin_invites.organization_id` FKs (every project and admin belongs to exactly one org; `NOT NULL` backstop in migration 014).
+- [x] **Re-scoped `owner` from global → org-scoped**: `canViewProject`/`canManageProject` (new `projectInOrg`), the `/admin/*` listing queries, and `requireProjectRead` gained an org filter — an owner sees only its org's projects; cross-org ids return 404 (no existence leak). (A platform/superadmin concept for Tindalabs ops stays out of the customer RBAC by design.)
+- [x] Per-org 2FA policy (`organizations.require_2fa`) supersedes the install-wide toggle; invites carry the inviter's org so an accepted account joins that company.
+- [x] Org-aware provisioning via the bootstrap CLIs (`create-admin`/`create-project` take an optional `[orgName]`, shared `findOrCreateOrgByName`).
+- [ ] **Deferred to the billing workstream:** public self-serve signup (`POST /admin/signup`) — coupled to free-tier limits + Stripe.
+- [ ] **Deferred:** anchor usage metering + Stripe (Phase 7) on `organizations`; Observatory org-management UI (org name/settings, switcher).
 
-**Why it composes:** mirrors how migration 009 backfilled `role` for existing admins —
+**Why it composed:** mirrors how migration 009 backfilled `role` for existing admins —
 self-host stays a single auto-created org, so no behaviour change there; the hosted tier
-gains the company boundary it needs. This is the **foundational prerequisite** for the
-hosted free tier + metering/billing already on the backlog, and should land before a
-second customer's data shares the box. Relates to [ADR-0004] data-isolation guarantees
-and the BSL "Tindalabs-hosted only" commercial model.
+gains the company boundary it needs. This was the **foundational prerequisite** for the
+hosted free tier + metering/billing on the backlog, landing before a second customer's
+data shares the box. Relates to [ADR-0005] / [ADR-0004] data-isolation guarantees and the
+BSL "Tindalabs-hosted only" commercial model.

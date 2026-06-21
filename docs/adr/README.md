@@ -8,3 +8,4 @@ Each ADR documents a significant architectural choice: the context, the decision
 | [0002](0002-persistence-policies.md) | Persistence Policies as first-class config | Accepted |
 | [0003](0003-otel-bridge.md) | OTel traceparent bridge for blindspot-ux composability | Accepted |
 | [0004](0004-consent-and-data-lifecycle.md) | Consent is the controller's responsibility; the SDK enforces, never triggers | Accepted |
+| [0005](0005-organizations-and-tenancy.md) | Organizations are the tenant boundary; owner is org-scoped, not global | Accepted |
