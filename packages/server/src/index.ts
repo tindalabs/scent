@@ -1,3 +1,7 @@
+// Imported first so Sentry.init runs before any instrumented module loads. In the
+// built image this is redundant with `--import ./dist/instrument.js` (Dockerfile CMD);
+// here it covers the dev/tsx path. No-ops without SENTRY_DSN.
+import './instrument.js';
 import { startTracing } from './tracing.js';
 startTracing();
 

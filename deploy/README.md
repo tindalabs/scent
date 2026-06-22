@@ -115,6 +115,34 @@ persistence is enabled here). Combined with the `event_id` dedupe in the worker,
 that gives at-least-once processing across restarts. For stronger guarantees a
 Postgres outbox would be the next step.
 
+## Observability: error tracking + uptime
+
+Out of the box the server emits structured `pino` logs (visible via `docker compose logs
+-f scent-server`) but they are ephemeral, and there is no alerting. Two low-effort layers
+close that gap.
+
+**Error tracking (Sentry).** Set `SENTRY_DSN` in `.env` and the server + worker report
+unhandled errors (with stack traces and request/job context) to Sentry; leave it unset and
+the SDK stays completely inert (no events leave the box). Setup:
+
+1. Create a Sentry project **in the EU region** (Settings → choose EU when creating the
+   org/project). This is a PII-sensitive product — keep error data in the EU.
+2. Copy the project's DSN into `.env` as `SENTRY_DSN=` and optionally set `SENTRY_RELEASE`
+   to the image tag/SHA you're running. `docker compose pull && docker compose up -d`.
+3. In Sentry, add an **alert rule** (e.g. notify on a new issue / error-rate spike).
+
+The DSN is a write-only ingest key, **not** a cloud/API token — safe to keep in `.env`.
+Before any event is sent the server scrubs request bodies (POST `/v1/events` carries raw
+fingerprint signals = PII), cookies, the `x-api-key`/`cookie`/`authorization` headers, the
+query string, and the client IP (`sendDefaultPii: false` plus an explicit `beforeSend` —
+see [docs/adr/0006-observability-sentry.md](../docs/adr/0006-observability-sentry.md)).
+Distributed traces/metrics to a managed backend are a deferred phase 2 (the OTel wiring
+already exists but ships disabled via `OTEL_SDK_DISABLED=true`).
+
+**Uptime.** Sentry can't tell you the box is hard-down. Point an external monitor (Better
+Stack / UptimeRobot free tier) at `https://<your-domain>/health` — it returns
+`{"status":"ok",...}` — with a 1-minute interval and alerting to the same channel.
+
 ## Optional: GeoIP (impossible-travel detection)
 
 The `impossible_transition` risk flag — IP geolocation moving faster than a flight

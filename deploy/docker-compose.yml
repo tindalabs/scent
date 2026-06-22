@@ -42,6 +42,10 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       SCENT_SECRET_KEY: ${SCENT_SECRET_KEY:-}
       OTEL_SDK_DISABLED: "true"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -59,13 +63,17 @@ services:
     restart: unless-stopped
     # Same image, different entrypoint: drains the BullMQ ingest queue. Scale with
     # `docker compose up -d --scale scent-worker=N` (no ports/name to collide).
-    command: ["node", "--import", "./dist/tracing.js", "dist/worker.js"]
+    command: ["node", "--import", "./dist/instrument.js", "--import", "./dist/tracing.js", "dist/worker.js"]
     environment:
       DATABASE_URL: postgresql://scent:${POSTGRES_PASSWORD}@postgres:5432/scent
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
       WORKER_CONCURRENCY: "5"
       OTEL_SDK_DISABLED: "true"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     depends_on:
       postgres:
         condition: service_healthy
