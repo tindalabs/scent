@@ -1,4 +1,5 @@
 import express, { type Express } from 'express';
+import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { rateLimitMiddleware, adminRateLimitMiddleware } from './middleware/rate-limit.js';
@@ -84,6 +85,12 @@ export function createApp(): Express {
   app.use('/v1/clusters', requireProjectRead, clustersRouter);
   app.use('/v1/account', requireProjectRead, accountRouter);
   app.use('/v1/accounts', requireProjectRead, accountsRouter);
+
+  // Sentry error capture, after all routes. No-op until Sentry.init runs (which only
+  // happens with SENTRY_DSN set — see instrument.ts), so dev/test/self-host are
+  // unaffected. Catches sync throws and next(err); the global unhandled-rejection
+  // integration covers async route rejections that bubble past Express.
+  Sentry.setupExpressErrorHandler(app);
 
   return app;
 }

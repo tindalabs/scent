@@ -1,6 +1,11 @@
+// Imported first so Sentry.init runs before any instrumented module loads (same
+// rationale as index.ts; redundant with `--import ./dist/instrument.js` in the image,
+// covers the dev/tsx path). No-ops without SENTRY_DSN.
+import './instrument.js';
 import { startTracing } from './tracing.js';
 startTracing();
 
+import * as Sentry from '@sentry/node';
 import { Queue, Worker } from 'bullmq';
 import { createQueueConnection, INGEST_QUEUE_NAME } from './queue/ingest.js';
 import type { IngestJobData } from './queue/ingest.js';
@@ -35,6 +40,12 @@ worker.on('failed', (job, err) => {
     { jobId: job?.id, attemptsMade: job?.attemptsMade, err },
     'ingest job failed',
   );
+  // BullMQ swallows the throw into this event, so the global handlers never see it —
+  // capture explicitly. No-op without SENTRY_DSN.
+  Sentry.captureException(err, {
+    tags: { queue: INGEST_QUEUE_NAME },
+    extra: { jobId: job?.id, attemptsMade: job?.attemptsMade },
+  });
 });
 
 // Daily retention sweep (GDPR data-lifecycle, ADR-0004). A repeatable job is enqueued
@@ -52,6 +63,10 @@ const retentionWorker = new Worker(
 );
 retentionWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'retention sweep failed');
+  Sentry.captureException(err, {
+    tags: { queue: RETENTION_QUEUE_NAME },
+    extra: { jobId: job?.id },
+  });
 });
 
 // Drain in-flight jobs and close the DB pool on shutdown so a redeploy doesn't drop
@@ -62,6 +77,9 @@ async function shutdown(): Promise<void> {
   await retentionWorker.close();
   await retentionQueue.close();
   await db.end();
+  // Flush any buffered events before exit (no-op without SENTRY_DSN). Bounded so a
+  // Sentry outage can't stall a redeploy.
+  await Sentry.flush(2000);
   process.exit(0);
 }
 
