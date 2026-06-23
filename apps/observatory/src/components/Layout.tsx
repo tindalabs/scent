@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, GitBranch, Network, KeyRound, UserCog, CircleUser, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, GitBranch, Network, KeyRound, UserCog, CircleUser, Gauge, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { useAuth } from '../contexts/AuthContext.js';
 import { useProjects } from '../contexts/ProjectContext.js';
@@ -9,6 +9,7 @@ const baseNav = [
   { to: '/identities', label: 'Identities', icon: Users, end: false },
   { to: '/accounts', label: 'Account clusters', icon: Network, end: false },
   { to: '/settings', label: 'API keys', icon: KeyRound, end: false },
+  { to: '/usage', label: 'Usage', icon: Gauge, end: false },
 ];
 
 export function Layout(): React.ReactElement {

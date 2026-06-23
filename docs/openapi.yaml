@@ -448,6 +448,38 @@ paths:
               schema: { $ref: "#/components/schemas/AdminIdentity" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /admin/usage:
+    get:
+      tags: [Admin]
+      summary: Usage metering for the caller's organization
+      description: >-
+        Current billing-period (UTC calendar month) identity-resolution count for the
+        signed-in admin's organization, the soft monthly limit, and recent history.
+        `limit` is null for unlimited (self-host / un-provisioned). Limits are soft —
+        exceeding them warns but never blocks.
+      security: [{ AdminSession: [] }]
+      responses:
+        "200":
+          description: Usage for the caller's organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan: { type: string, example: free }
+                  limit: { type: integer, nullable: true, example: 10000 }
+                  periodStart: { type: string, format: date, example: "2026-06-01" }
+                  resolutionsThisPeriod: { type: integer, example: 3421 }
+                  pctUsed: { type: number, nullable: true, example: 0.3421 }
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        periodStart: { type: string, format: date }
+                        resolutions: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /admin/projects:
     get:
       tags: [Admin]

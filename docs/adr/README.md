@@ -10,3 +10,4 @@ Each ADR documents a significant architectural choice: the context, the decision
 | [0004](0004-consent-and-data-lifecycle.md) | Consent is the controller's responsibility; the SDK enforces, never triggers | Accepted |
 | [0005](0005-organizations-and-tenancy.md) | Organizations are the tenant boundary; owner is org-scoped, not global | Accepted |
 | [0006](0006-observability-sentry.md) | Sentry-led error tracking now; OTel traces/logs to a backend deferred | Accepted |
+| [0007](0007-usage-metering.md) | Usage metering — a durable per-organization resolution ledger (soft limits) | Accepted |

@@ -10,6 +10,7 @@
     "migrate": "tsx src/db/migrate-cli.ts",
     "create-project": "tsx src/scripts/create-project.ts",
     "create-admin": "tsx src/scripts/create-admin.ts",
+    "set-org-plan": "tsx src/scripts/set-org-plan.ts",
     "worker": "tsx src/worker.ts",
     "worker:start": "node --import ./dist/instrument.js --import ./dist/tracing.js dist/worker.js",
     "test": "vitest run",

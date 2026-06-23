@@ -14,6 +14,7 @@ import { DriftTimeline } from './pages/DriftTimeline.js';
 import { ClusterDetail } from './pages/ClusterDetail.js';
 import { AccountClusters } from './pages/AccountClusters.js';
 import { Settings } from './pages/Settings.js';
+import { Usage } from './pages/Usage.js';
 
 export function App(): React.ReactElement {
   return (
@@ -25,6 +26,7 @@ export function App(): React.ReactElement {
           {/* Admin/account pages don't need a selected project, so they sit outside
               the project gate. */}
           <Route path="settings" element={<Settings />} />
+          <Route path="usage" element={<Usage />} />
           <Route path="account" element={<Account />} />
           <Route element={<RequireOwner />}>
             <Route path="users" element={<Users />} />

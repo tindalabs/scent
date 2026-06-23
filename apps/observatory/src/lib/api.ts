@@ -223,6 +223,24 @@ export function setRequireTwoFactor(require_2fa: boolean): Promise<{ require_2fa
   return adminFetch('/admin/settings', { method: 'PUT', body: JSON.stringify({ require_2fa }) });
 }
 
+// --- Usage metering (org-scoped; any admin can read their own org's usage) ----------
+
+export interface UsageData {
+  plan: string;
+  // null = unlimited (self-host / un-provisioned).
+  limit: number | null;
+  // First day of the current UTC month (YYYY-MM-DD).
+  periodStart: string;
+  resolutionsThisPeriod: number;
+  // resolutionsThisPeriod / limit, or null when unlimited.
+  pctUsed: number | null;
+  history: { periodStart: string; resolutions: number }[];
+}
+
+export function getUsage(): Promise<UsageData> {
+  return adminFetch('/admin/usage');
+}
+
 // Types mirroring server responses
 
 export interface Identity {

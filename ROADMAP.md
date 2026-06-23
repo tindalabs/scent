@@ -365,7 +365,7 @@ A single demo app running both `@tindalabs/blindspot` and `@tindalabs/scent-sdk`
 ### Cloud infrastructure
 
 - [x] Multi-tenant architecture: all data scoped by project (every table FK'd to `projects` with `ON DELETE CASCADE`; API key → project_id resolved in auth). API keys are hashed at rest (SHA-256).
-- [ ] Usage metering: count identity resolutions per billing period
+- [x] Usage metering: durable per-org, per-UTC-month resolution ledger ([ADR-0007](docs/adr/0007-usage-metering.md), migration 015) — exactly-once in `resolveSnapshot`, soft limits, `GET /admin/usage` + Observatory Usage page. Stripe billing still pending.
 - [x] API key management UI (create, rotate, revoke) — Observatory **API Keys** page behind multi-user admin auth (bcrypt, server-side sessions, CSRF, per-IP rate limit); rotate/revoke bust the Redis auth cache immediately
 - [ ] Billing integration: Stripe (usage-based, metered billing)
 
@@ -479,8 +479,8 @@ Full report: `c-level/reports/scent_2026-05-19.md`
 - [~] **Simultaneous launch**: GitHub repo is public and npm packages are published (`scent-sdk`/`-engine`/`-otel` @ `0.1.0`, trusted publishing). **Show HN post still pending** — the launch-day momentum play is not yet fired.
 - [ ] Launch `tindalabs.dev` landing page — `docs/tindalabs-landing-page-spec.md` has all the copy; HN traffic needs somewhere to land
 - [ ] Write and publish "Why FingerprintJS free tier isn't enough — and what we built instead" blog post on Dev.to and Medium (the migration guide is already written; this is the SEO play)
-- [ ] Implement usage metering (`resolution_count` increment per project per billing period) — the revenue meter; unblocks Phase 7 Stripe integration
-- [~] Implement Phase 7 SaaS: **API key management UI is done** (admin auth — multi-user accounts, sessions, CSRF — + Observatory create/rotate/revoke); Stripe usage-based billing + billing dashboard still pending (gated on usage metering above)
+- [x] Implement usage metering — durable per-**org**, per-month resolution ledger ([ADR-0007](docs/adr/0007-usage-metering.md), migration 015), incremented exactly-once inside `resolveSnapshot`; soft warnings at 80%/100% (logger + Sentry), never blocks. The revenue meter; unblocks Stripe.
+- [~] Implement Phase 7 SaaS: **API key management UI + usage metering done**; Stripe usage-based billing + billing dashboard still pending (now unblocked by the metering ledger)
 - [x] Publish accuracy benchmarks comparing Scent vs. FingerprintJS OSS vs. ThumbmarkJS ✅ — added `bench/` (`@tindalabs/scent-bench`, run via `pnpm bench`): a reproducible, seeded harness that holds signal *collection* constant and varies only the matcher, driving the **real** `@tindalabs/scent-engine`. Models the deterministic libs faithfully (re-identify iff the hashed component set is byte-for-byte identical). Headline ([`bench/RESULTS.md`](bench/RESULTS.md)): **weighted recall FingerprintJS 45% / ThumbmarkJS 55% / Scent 100%** under drift; deterministic IDs collapse to 0% the instant any hashed component changes (browser update, anti-fingerprinting, VPN/timezone, new monitor — Thumbmark survives only the monitor case by dropping screen geometry). Crucially it also reports Scent's **confidence gradient** (mean 1.00→0.80; "confirmed" share drops to 57.9% on browser updates, 15.8% on anti-fingerprinting) and a **false-merge counter-metric** — so it reads as measurement, not a brochure. Methodology + limits documented in `bench/README.md`.
 - [x] Publish `tindalabs/scent-server` Docker image so self-hosters can `docker pull` — auto-published on every main push to **both GHCR (`ghcr.io/tindalabs/scent-server`) and Docker Hub (`tindalabs/scent-server`)** via `.github/workflows/publish-docker.yml`
 - [ ] Reach out to 10–15 mid-market SaaS founders/CTOs who post publicly about fraud on Twitter/LinkedIn (primary community seeding)
@@ -554,7 +554,7 @@ Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_20
 
 **CFO — 7/10 (low burn, clean IP; revenue unbuilt, bus-factor-1)**
 - Low fixed-cost floor, near-zero debt liability, all inbound deps permissive, intentional BSL moat on the server.
-- [ ] **Convert per-key Redis counters into a metering ledger + ship a thin paid tier** — cheapest path from cost-center to validated revenue; reuses infra already built. (Same as the long-standing "usage metering" item — now framed as the revenue gate.)
+- [~] **Convert per-key Redis counters into a metering ledger + ship a thin paid tier** — metering ledger **SHIPPED** ([ADR-0007](docs/adr/0007-usage-metering.md): durable per-org/month Postgres counters, soft limits, Observatory Usage page). The thin paid tier (Stripe) is the remaining half.
 - [ ] **De-risk bus factor = 1** — document the engine's weight/threshold *rationale* + bring in a second maintainer. Dominant operational *and* acquisition risk.
 - [ ] **Verify MaxMind GeoLite2 *data* EULA** (separate from the npm code license) — load at runtime rather than bundling in the redistributed image.
 
@@ -585,7 +585,7 @@ Full report: [`c-level/reports/scent_2026-06-14.md`](../c-level/reports/scent_20
 - [ ] Per-admin audit log
 
 **Strategic (1–3 months)**
-- [ ] Hosted free tier + metering ledger (reuse per-key Redis counters) — the revenue path
+- [~] Hosted free tier + metering ledger — **metering ledger shipped** ([ADR-0007](docs/adr/0007-usage-metering.md)); free-tier enforcement + billing still pending
 - [ ] GDPR data-lifecycle layer (consent, retention TTL, IP minimization, export/delete) — converts the #1 liability into the market wedge
 - [ ] De-risk bus factor: document engine/threshold rationale + add a second maintainer
 - [ ] Postgres partitioning + read replica before scale
@@ -687,7 +687,7 @@ isolation; metering/billing will anchor on it:
 - [x] Per-org 2FA policy (`organizations.require_2fa`) supersedes the install-wide toggle; invites carry the inviter's org so an accepted account joins that company.
 - [x] Org-aware provisioning via the bootstrap CLIs (`create-admin`/`create-project` take an optional `[orgName]`, shared `findOrCreateOrgByName`).
 - [ ] **Deferred to the billing workstream:** public self-serve signup (`POST /admin/signup`) — coupled to free-tier limits + Stripe.
-- [ ] **Deferred:** anchor usage metering + Stripe (Phase 7) on `organizations`; Observatory org-management UI (org name/settings, switcher).
+- [~] anchor usage metering + Stripe (Phase 7) on `organizations`: **usage metering shipped** ([ADR-0007](docs/adr/0007-usage-metering.md)); Stripe + the Observatory org-management UI (org name/settings, switcher) still deferred.
 
 **Why it composed:** mirrors how migration 009 backfilled `role` for existing admins —
 self-host stays a single auto-created org, so no behaviour change there; the hosted tier
