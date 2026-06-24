@@ -18,6 +18,8 @@ import type { SignalProfile } from '../engine/signal-profile.js';
 import { minimizeIp } from '../lib/minimize-ip.js';
 import { assessRisk } from '../risk/assess.js';
 import { deliverWebhooks } from '../risk/webhook.js';
+import { incrementUsage, checkAndWarnThreshold } from '../lib/usage.js';
+import type { UsageIncrement } from '../lib/usage.js';
 
 const tracer = trace.getTracer('scent-server');
 
@@ -109,8 +111,10 @@ export async function resolveSnapshot(
       let ambiguous = false;
       let newSnapId: string | null = null;
 
-      await db.begin(async (tx) => {
+      const usage = await db.begin(async (tx) => {
         await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+
+        let usageIncrement: UsageIncrement | null = null;
 
         // Candidate retrieval: pre-filter on the denormalized latest_signal_hash,
         // returning only identities whose SimHash is within the Hamming threshold
@@ -215,6 +219,12 @@ export async function resolveSnapshot(
         `;
         if (newSnap) newSnapId = newSnap.id;
 
+        // Meter this resolution against the project's org for the current month. Inside
+        // the transaction so it's exactly-once with the snapshot (retries dedup out above)
+        // and rolls back together; project->org is resolved inline. Returned from the
+        // transaction (rather than mutating an outer var) so it's correctly typed after.
+        usageIncrement = await incrementUsage(tx, projectId);
+
         // Drift: compute against the previous snapshot for this identity.
         if (!isNew && newSnap) {
           const prevSnap = await tx<{ id: string; signals: SignalMap }[]>`
@@ -242,7 +252,16 @@ export async function resolveSnapshot(
         if (!isNew && secondBest && secondBest.confidence >= CLUSTER_LINK_THRESHOLD) {
           await linkToCluster(tx, projectId, resolvedId, secondBest.identityId, secondBest.confidence);
         }
+
+        return usageIncrement;
       });
+
+      // Soft usage-limit alerting, after the commit so its reads/writes and any Sentry
+      // emit never delay or roll back the resolution. Fire-and-forget: metering must
+      // never affect the resolution result.
+      if (usage) {
+        void checkAndWarnThreshold(db, usage.organizationId, usage.periodCount);
+      }
 
       const continuity = scoreToIdentityContinuity(finalConfidence);
 

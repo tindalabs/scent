@@ -7,6 +7,7 @@ import { redis } from '../db/redis.js';
 import { hashPassword } from '../admin/password.js';
 import { hashApiKey } from '../middleware/api-key.js';
 import { createTestOrg, deleteTestOrg } from '../test-support/org.js';
+import { resolveSnapshot } from '../pipeline/resolve.js';
 
 // Integration coverage for the admin management API: login/session, and project key
 // create/rotate/revoke including the data-API (/v1) authorization side effects and
@@ -131,6 +132,34 @@ describe.skipIf(!hasDb)('admin management API (integration)', () => {
     expect((await resolveWith(apiKey)).status).toBe(401);
     const rows = await db`SELECT id FROM projects WHERE id = ${projectId}`;
     expect(rows).toHaveLength(0);
+  });
+
+  it('reports org-scoped usage via GET /admin/usage', async () => {
+    // Set a soft limit, then create a project and commit one resolution. We drive
+    // resolveSnapshot directly (the metered, persisting path); POST /v1/resolve is a
+    // non-persisting preview and intentionally does not count toward usage.
+    await db`UPDATE organizations SET monthly_resolution_limit = 1000 WHERE name = ${ORG}`;
+    const created = await agent.post('/admin/projects').set('X-CSRF-Token', csrf).send({ name: 'AdminIT Usage' });
+    expect(created.status).toBe(201);
+    await resolveSnapshot(db, {
+      projectId: created.body.project.id,
+      snap: {
+        identityId: crypto.randomUUID(),
+        signals: { 'canvas.2d': crypto.randomUUID(), 'platform.os': 'Linux' },
+        persistencePolicy: 'balanced',
+        timestamp: new Date().toISOString(),
+      },
+      clientIp: null,
+    });
+
+    const res = await agent.get('/admin/usage');
+    expect(res.status).toBe(200);
+    expect(res.body.plan).toBeDefined();
+    expect(res.body.limit).toBe(1000);
+    expect(res.body.periodStart).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(res.body.resolutionsThisPeriod).toBeGreaterThanOrEqual(1);
+    expect(res.body.pctUsed).toBeGreaterThan(0);
+    expect(Array.isArray(res.body.history)).toBe(true);
   });
 
   it('logout clears the session', async () => {

@@ -210,6 +210,39 @@ adminRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
   res.json({ id: user.id, email: user.email, role: user.role, totpEnabled: user.totpEnabled, mustEnroll });
 });
 
+// Usage metering for the caller's organization: current-month resolution count vs the
+// soft limit, plus recent history. Org-scoped (any admin sees their own org's usage);
+// GET, so no CSRF. limit null = unlimited (self-host / un-provisioned).
+adminRouter.get('/usage', async (req: Request, res: Response): Promise<void> => {
+  const org = req.adminUser!.organizationId;
+  const [orgRow] = await db<{ plan: string; monthly_resolution_limit: number | null }[]>`
+    SELECT plan, monthly_resolution_limit FROM organizations WHERE id = ${org} LIMIT 1
+  `;
+  const history = await db<{ period_start: string; resolution_count: string }[]>`
+    SELECT to_char(period_start, 'YYYY-MM-DD') AS period_start, resolution_count
+    FROM usage_counters
+    WHERE organization_id = ${org}
+    ORDER BY period_start DESC
+    LIMIT 6
+  `;
+
+  const now = new Date();
+  const periodStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  const resolutionsThisPeriod = Number(
+    history.find((h) => h.period_start === periodStart)?.resolution_count ?? 0,
+  );
+  const limit = orgRow?.monthly_resolution_limit ?? null;
+
+  res.json({
+    plan: orgRow?.plan ?? 'free',
+    limit,
+    periodStart,
+    resolutionsThisPeriod,
+    pctUsed: limit && limit > 0 ? resolutionsThisPeriod / limit : null,
+    history: history.map((h) => ({ periodStart: h.period_start, resolutions: Number(h.resolution_count) })),
+  });
+});
+
 adminRouter.get('/projects', async (req: Request, res: Response): Promise<void> => {
   const user = req.adminUser!;
   // Owners see every project (with the synthetic role 'owner'); members see only the
